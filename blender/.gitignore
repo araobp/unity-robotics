@@ -1,4 +1,5 @@
 # Blender
+*.blend
 *.blend[1-9]
 *.blendarcher
 *.blendbackup
