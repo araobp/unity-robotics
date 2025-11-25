@@ -1,4 +1,4 @@
-# Godot Robotics
+# Robotics
 
 (Work in progress)
 
