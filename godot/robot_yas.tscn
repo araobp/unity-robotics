@@ -1,7 +1,0 @@
-[gd_scene load_steps=3 format=3 uid="uid://bc28wmse3pipj"]
-
-[ext_resource type="PackedScene" uid="uid://ctrotniifg7m4" path="res://robot_yas.glb" id="1_l3gbm"]
-[ext_resource type="Script" uid="uid://derv5oln5vewl" path="res://robot_yas.gd" id="2_3olwc"]
-
-[node name="robot_yas" instance=ExtResource("1_l3gbm")]
-script = ExtResource("2_3olwc")
