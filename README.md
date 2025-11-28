@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 
 ## Gemini Robot Simulation with Godot
 
-### IK(Inverse Kinematics) with Cosine Theorem for the robot arms
+### IK(Inverse Kinematics) with Cosine Theorem for the robot arm
 
 => [Cosine theorem for Inverse Kinematics](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
 
