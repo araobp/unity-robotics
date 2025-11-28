@@ -8,7 +8,7 @@
 
 The original blend file is in https://github.com/araobp/blender-3d/tree/main/robots
 
-## Gemini Robot Simulation with Unity
+## Gemini Robot Simulation with Godot
 
 => [Code](./robotics)
 
