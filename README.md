@@ -8,7 +8,7 @@
 
 The original blend file is in https://github.com/araobp/blender-3d/tree/main/robots
 
-=> [YouTube video](https://youtu.be/C_qCqOBFJzs)
+=> [YouTube video (rendered Blender's Cycles rendering engine](https://youtu.be/C_qCqOBFJzs)
 
 ## Robot on Godot
 
