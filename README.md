@@ -10,6 +10,8 @@ The original blend file is in https://github.com/araobp/blender-3d/tree/main/rob
 
 ## Robot on Godot
 
+But I gave up using Godot for this project... Use Unity that is an industry standard platform.
+
 https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 
 ### IK(Inverse Kinematics) with Cosine Theorem for the robot arm
