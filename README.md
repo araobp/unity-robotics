@@ -1,4 +1,4 @@
-# AI Robot Simulation with Godot and Gemini Robotics
+# AI Robot Simulation with Gemini Robotics
 
 (Work in progress)
 
@@ -12,19 +12,9 @@ The original blend file is in https://github.com/araobp/blender-3d/tree/main/rob
 
 https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 
-## Gemini Robot Simulation with Godot
-
 ### IK(Inverse Kinematics) with Cosine Theorem for the robot arm
 
 => [Cosine theorem for Inverse Kinematics](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
-
-### Code
-
-(Just started developing it)
-
-=> [Code](./robotics)
-
-"gemini_api_key.txt" file contining Gemini API Key value must be in the root folder. The file is not archived in this repo for a security reason.
 
 ## References
 
