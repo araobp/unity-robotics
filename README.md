@@ -2,7 +2,7 @@
 
 (Work in progress)
 
-## Robot made with Blender
+## Robot 3D model made with Blender
 
 <img src="docs/robot.png" width=300>
 
