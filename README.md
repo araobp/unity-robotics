@@ -8,6 +8,8 @@
 
 The original blend file is in https://github.com/araobp/blender-3d/tree/main/robots
 
+=> [YouTube video](https://youtu.be/C_qCqOBFJzs)
+
 ## Robot on Godot
 
 But I have give up using Godot for this project... Use Unity that is an industry standard platform supporting various 3D capabilities for robotics simulation.
