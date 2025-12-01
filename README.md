@@ -1,42 +1,42 @@
 # AI Robot Simulation with Gemini Robotics
 
-(Work in progress)
+This project explores AI robot simulation using the Gemini API.
 
-## Robot 3D model made with Blender
+## Robot 3D Model in Blender
 
 <img src="docs/robot.png" width=300>
 
-The original blend file is in https://github.com/araobp/blender-3d/tree/main/robots
+The original Blender file is available in this repository: [blender-3d/robots](https://github.com/araobp/blender-3d/tree/main/robots).
 
-=> [YouTube video (rendered Blender's Cycles rendering engine](https://youtu.be/C_qCqOBFJzs)
+[Watch the YouTube video (rendered with Blender's Cycles rendering engine)](https://youtu.be/C_qCqOBFJzs)
 
-## Simulation on Unity
+## Unity Simulation
 
-(Just started implementing it)
+Currently, the Unity simulation implementation is in its early stages.
 
-=> [Code](./robotics)
+[Access the Unity project code here](./robotics)
 
-=> [Gemini.cs](/robotics/Assets/Scripts/Gemini.cs) This is a Gemini-generated C# port of [my original GDScript code for Gemini API](https://github.com/araobp/airport/blob/main/airport/scripts/gemini.gd).
+[`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs) is a C# port of the original GDScript code for the Gemini API, generated with the help of Gemini.
 
-Gemini API:
+**Gemini API Features Explored:**
 - [Speech Generation](https://ai.google.dev/gemini-api/docs/speech-generation)
 
-## Robot scene on Unity
+## Robot Scene in Unity
 
-I have just started working on the robot on Unity.
+Work on the robot scene in Unity has recently begun.
 
 https://github.com/user-attachments/assets/284fa21c-c9fd-4fcd-9ea6-39f38e45e4f8
 
-## Robot scene on Godot
+## Robot Scene in Godot (Discontinued)
 
-First I tried to use Godot but gave up using Godot for its 3D capabilties are weak. I like Godot but not for a project like this.
+Initially, Godot was considered for this project. However, due to its limitations in 3D capabilities, development was shifted to Unity. While Godot is a preferred engine for many use cases, it was not suitable for the 3D requirements of this simulation.
 
 https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 
-### IK(Inverse Kinematics) with Cosine Theorem for the robot arm
+### Inverse Kinematics (IK) with Cosine Theorem for the Robot Arm
 
-=> [Cosine theorem for Inverse Kinematics](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
+[Explore the Cosine theorem for Inverse Kinematics implementation](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
 
 ## References
 
-- [Gemini Robotics](https://ai.google.dev/gemini-api/docs/robotics-overview?_gl=1*1lzll2v*_up*MQ..&gclid=CjwKCAiA_orJBhBNEiwABkdmjD7r9CFuZHP7R-rxSMY2zKyRX-Tw3V5xUHvfeDADA1mCxsFDtQjQxxoCq18QAvD_BwE&gclsrc=aw.ds&gbraid=0AAAAACn9t67tI7rvJei_ADOP4vnyAYNGl)
+- [Gemini Robotics Overview](https://ai.google.dev/gemini-api/docs/robotics-overview?_gl=1*1lzll2v*_up*MQ..&gclid=CjwKCAiA_orJBhBNEiwABkdmjD7r9CFuZHP7R-rxSMY2zKyRX-Tw3V5xUH2feDADA1mCxsFDtQjQxxoCq18QAvD_BwE&gclsrc=aw.ds&gbraid=0AAAAACn9t67tI7rvJei_ADOP4vnyAYNGl)
