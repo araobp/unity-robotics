@@ -29,7 +29,7 @@ https://github.com/user-attachments/assets/284fa21c-c9fd-4fcd-9ea6-39f38e45e4f8
 
 ## Robot scene on Godot
 
-I have give up using Godot for this project... Use Unity that is an industry standard platform supporting various 3D capabilities for robotics simulation.
+First I tried to use Godot but gave up using Godot for its 3D capabilties are weak. I like Godot but not for a project like this.
 
 https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 
