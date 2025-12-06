@@ -16,11 +16,6 @@ Currently, the Unity simulation implementation is in its early stages.
 
 [Access the Unity project code here](./robotics)
 
-[`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs) is a C# port of the original GDScript code for the Gemini API, generated with the help of Gemini.
-
-**Gemini API Features Explored:**
-- [Speech Generation](https://ai.google.dev/gemini-api/docs/speech-generation)
-
 ### Inverse Kinematics (IK) with Cosine Theorem for the Robot Arm
 
 [Explore the Cosine theorem for Inverse Kinematics implementation](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
@@ -32,6 +27,13 @@ Currently, the Unity simulation implementation is in its early stages.
 <img src="docs/Positioning_2.jpg" width=600>
 
 <img src="docs/Positioning_3.jpg" width=600>
+
+### Gemini API
+
+[`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs)
+
+**Gemini API Features Explored:**
+- [Speech Generation](https://ai.google.dev/gemini-api/docs/speech-generation)
 
 ## Robot Scene in Unity
 
