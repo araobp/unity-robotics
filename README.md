@@ -22,7 +22,7 @@ Currently, the Unity simulation implementation is in its early stages.
 
 ### Positioning the robot hand to the work on the table
 
-<img src="P1.jpg" width=600>
+<img src="docs/P1.jpg" width=600>
 
 <img src="docs/P2.jpg" width=600>
 
