@@ -32,6 +32,8 @@ Currently, the Unity simulation implementation is in its early stages.
 
 <img src="docs/P5.jpg" width=600>
 
+<img src="docs/P6.jpg" width=600>
+
 ### Gemini API
 
 [`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs)
