@@ -3,15 +3,21 @@ using System.Threading;
 using System.Threading.Tasks;
 using Vector3 = UnityEngine.Vector3;
 using Quaternion = UnityEngine.Quaternion;
+using TMPro;
 
 // This class implements inverse kinematics (IK) for a robot arm, calculating the joint angles required to reach a target and smoothly animating the robot's movement.
-public class RobotTest : MonoBehaviour
+public class GeminiRoboticsTest : MonoBehaviour
 {
     // --- Fields ---
 
     // The target GameObject that the robot arm's end effector will attempt to reach.
     [Header("IK Target")]
     [SerializeField] GameObject work;
+
+    [SerializeField] GameObject finger;
+
+    [Header("Robot Base")]
+    [SerializeField] GameObject robotBase;
 
     // GameObjects representing the robot's joints.
     [Header("Robot Joints")]
@@ -25,7 +31,12 @@ public class RobotTest : MonoBehaviour
     [Tooltip("The duration in seconds for the IK movement to complete.")]
     [SerializeField] private float ikMoveDuration = 1.0f;
 
-    // A CancellationTokenSource for canceling the in-progress asynchronous movement task.
+    [Header("Hand target coordinates")]
+    [SerializeField] TMP_Text handTargetPosX;
+    [SerializeField] TMP_Text handTargetPosY;
+    [SerializeField] TMP_Text handTargetPosZ;
+
+    // 進行中の非同期移動タスクをキャンセルするためのトークンソース。
     private CancellationTokenSource _ikMoveCts;
 
     // Stores the initial rotation of each joint, allowing for relative calculations.
@@ -48,6 +59,15 @@ public class RobotTest : MonoBehaviour
 
         // Call the IKTest method after 2 seconds to start the IK process.
         Invoke("IKTest", 2f);
+    }
+
+    void Update()
+    {
+        Vector3 handTargetPos = robotBase.transform.InverseTransformPoint(finger.transform.position);
+
+        handTargetPosX.text = $"x: {handTargetPos.x.ToString("F3")}";
+        handTargetPosY.text = $"y: {handTargetPos.y.ToString("F3")}";
+        handTargetPosZ.text = $"z: {handTargetPos.z.ToString("F3")}";
     }
 
     // Called when the MonoBehaviour is destroyed.

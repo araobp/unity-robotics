@@ -215,6 +215,84 @@ public class Gemini
         }
     }
 
+    /// <summary>
+    /// Identifies objects in a scene from an image and a text prompt.
+    /// </summary>
+    /// <param name="prompt">The text prompt describing what to find.</param>
+    /// <param name="base64Image">A Base64-encoded image of the scene.</param>
+    /// <returns>A JObject containing the identified objects and their 2D coordinates.</returns>
+    public async Task<JObject> FindObjectsInScene(string prompt, string base64Image)
+    {
+        // Define the JSON schema for the expected output of object detection.
+        JObject jsonSchema = JObject.Parse(@"
+        {
+            'type': 'object',
+            'properties': {
+                'objects': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'label': { 'type': 'string' },
+                            'point': {
+                                'type': 'array',
+                                'items': { 'type': 'number' },
+                                'minItems': 2,
+                                'maxItems': 2
+                            }
+                        },
+                        'required': ['label', 'point']
+                    }
+                }
+            },
+            'required': ['objects']
+        }");
+
+        string jsonResponse = await Chat(prompt, 
+                                         "You are a robotics assistant. Your task is to identify objects in the provided image based on the prompt and return their labels and 2D coordinates.", 
+                                         new List<string> { base64Image }, 
+                                         jsonSchema, 
+                                         null, null, null);
+        if (jsonResponse != null)
+        {
+            return JObject.Parse(jsonResponse);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Generates a step-by-step plan for a robot to execute a high-level command.
+    /// </summary>
+    /// <param name="command">The high-level natural language command for the robot.</param>
+    /// <returns>A JObject containing the sequence of steps for the robot to perform.</returns>
+    public async Task<JObject> GenerateRobotPlan(string command)
+    {
+        // Define the JSON schema for the expected output of a robot plan.
+        JObject jsonSchema = JObject.Parse(@"
+        {
+            'type': 'object',
+            'properties': {
+                'plan': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'step': { 'type': 'string', 'description': 'A single, actionable step for the robot.' }
+                        },
+                        'required': ['step']
+                    }
+                }
+            },
+            'required': ['plan']
+        }");
+
+        string jsonResponse = await Chat(command, "You are a robotics planner. Deconstruct the user's command into a series of simple, actionable steps for a robot to follow.", null, jsonSchema, null, null, null);
+        if (jsonResponse != null)
+        {
+            return JObject.Parse(jsonResponse);
+        }
+        return null;
+    }
 
     #endregion
 
