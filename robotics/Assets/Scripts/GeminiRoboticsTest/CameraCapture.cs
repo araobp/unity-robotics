@@ -1,9 +1,10 @@
 using UnityEngine;
 using System;
+using UnityEngine.UI;
 
 /// <summary>
-/// This component handles capturing an image from a specified Unity Camera
-/// and converting it into a Base64-encoded string.
+/// Captures an image from a specified Unity Camera, converts it to a Base64-encoded string,
+/// and optionally displays it on a RawImage UI component.
 /// </summary>
 public class CameraCapture : MonoBehaviour
 {
@@ -19,13 +20,19 @@ public class CameraCapture : MonoBehaviour
     [SerializeField]
     private int imageHeight = 720;
 
+    [Tooltip("A UI RawImage component to display the captured image. This is optional.")]
+    [SerializeField] RawImage outputRawImage;
+
     private string _lastCaptureBase64;
 
     /// <summary>
-    /// The last captured image, encoded as a Base64 string.
+    /// Gets the last captured image encoded as a Base64 string.
     /// </summary>
     public string LastCaptureBase64 => _lastCaptureBase64;
 
+    /// <summary>
+    /// Initializes the component by finding the main camera if no capture camera is assigned.
+    /// </summary>
     void Start()
     {
         if (captureCamera == null)
@@ -35,47 +42,68 @@ public class CameraCapture : MonoBehaviour
             {
                 Debug.LogError("No camera found. Please assign a camera to the CameraCapture script or ensure you have a main camera in the scene.");
                 enabled = false;
+                return;
             }
         }
     }
 
     /// <summary>
-    /// Captures an image from the assigned camera and returns it as a Base64 encoded string.
+    /// Captures a frame from the assigned camera and returns it as a Base64 encoded string.
     /// </summary>
     /// <returns>A Base64 encoded string of the captured JPG image.</returns>
     public string CaptureAsBase64()
     {
-        // Create a RenderTexture with the specified dimensions.
+        // Create a temporary RenderTexture to hold the camera's view.
         RenderTexture renderTexture = RenderTexture.GetTemporary(imageWidth, imageHeight, 24);
-        
-        // Temporarily assign the RenderTexture to the camera.
+
+        // Set the camera's target to our temporary RenderTexture.
         var previousTargetTexture = captureCamera.targetTexture;
         captureCamera.targetTexture = renderTexture;
 
-        // Render the camera's view to our RenderTexture.
+        // Manually render the camera's view.
         captureCamera.Render();
 
-        // Set the active RenderTexture to the one we just rendered to.
+        // Set the temporary RenderTexture as the active one to read from.
         RenderTexture.active = renderTexture;
 
-        // Create a new Texture2D to hold the captured image.
+        // Create a new Texture2D to receive the pixel data.
         Texture2D capturedImage = new Texture2D(imageWidth, imageHeight, TextureFormat.RGB24, false);
 
         // Read the pixels from the active RenderTexture into the Texture2D.
         capturedImage.ReadPixels(new Rect(0, 0, imageWidth, imageHeight), 0, 0);
         capturedImage.Apply();
 
-        // Reset the camera's target texture and the active RenderTexture, and release the temporary one.
+        // Clean up: reset the camera's target and release the temporary RenderTexture.
         captureCamera.targetTexture = previousTargetTexture;
         RenderTexture.active = null;
         RenderTexture.ReleaseTemporary(renderTexture);
 
-        // Encode the Texture2D to a JPG byte array and then to a Base64 string.
+        // If an output RawImage is assigned, display the captured image.
+        if (outputRawImage != null)
+        {
+            // To prevent memory leaks, destroy the old texture before assigning a new one.
+            if (outputRawImage.texture != null)
+#if UNITY_EDITOR
+                // Use DestroyImmediate in the editor to avoid errors about destroying assets.
+                DestroyImmediate(outputRawImage.texture, true);
+#else
+                Destroy(outputRawImage.texture);
+#endif
+            outputRawImage.texture = capturedImage;
+        }
+
+        // Encode the image to JPG format and then convert to a Base64 string.
         byte[] imageBytes = capturedImage.EncodeToJPG();
         _lastCaptureBase64 = Convert.ToBase64String(imageBytes);
 
-        // Clean up the temporary Texture2D.
-        Destroy(capturedImage);
+        // If the image is not being displayed, we should destroy the texture to free up memory.
+        if (outputRawImage == null)
+#if UNITY_EDITOR
+            // Use DestroyImmediate in the editor to avoid errors about destroying assets.
+            DestroyImmediate(capturedImage, true);
+#else
+            Destroy(capturedImage);
+#endif
 
         return _lastCaptureBase64;
     }

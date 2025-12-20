@@ -4,17 +4,19 @@ using System.Threading.Tasks;
 using Vector3 = UnityEngine.Vector3;
 using Quaternion = UnityEngine.Quaternion;
 using TMPro;
+using UnityEngine.UI;
 
 // This class implements inverse kinematics (IK) for a robot arm, calculating the joint angles required to reach a target and smoothly animating the robot's movement.
 public class GeminiRoboticsTest : MonoBehaviour
 {
     // --- Fields ---
 
+    [Header("IK Test Mode")]
+    [SerializeField] bool ikTestMode = false;
+
     // The target GameObject that the robot arm's end effector will attempt to reach.
     [Header("IK Target")]
     [SerializeField] GameObject work;
-
-    [SerializeField] GameObject finger;
 
     [Header("Robot Base")]
     [SerializeField] GameObject robotBase;
@@ -26,20 +28,35 @@ public class GeminiRoboticsTest : MonoBehaviour
     [SerializeField] GameObject armAxis;
     [SerializeField] GameObject handAxis;
 
+    [Header("End Effector")]
+    [SerializeField] GameObject finger;
+
     // Inverse kinematics behavior settings.
     [Header("IK Settings")]
     [Tooltip("The duration in seconds for the IK movement to complete.")]
     [SerializeField] private float ikMoveDuration = 1.0f;
 
-    [Header("Hand target coordinates")]
+    [Header("Coordinate Display")]
     [SerializeField] TMP_Text handTargetPosX;
     [SerializeField] TMP_Text handTargetPosY;
     [SerializeField] TMP_Text handTargetPosZ;
 
-    // 進行中の非同期移動タスクをキャンセルするためのトークンソース。
+    [Header("Operation buttons")]
+    [SerializeField] Button buttonDetect;
+    [SerializeField] Button buttonPick;
+    [SerializeField] Button buttonPlace;
+    [SerializeField] Button buttonReset;
+
+    [Header("Components")]
+    [SerializeField] private CameraCapture cameraCapture;
+    [SerializeField] private DetectedObjects detectedObjects;
+    private GeminiRoboticsApi geminiRoboticsApi;
+
+    // A CancellationTokenSource for canceling the in-progress asynchronous movement task.
     private CancellationTokenSource _ikMoveCts;
 
     // Stores the initial rotation of each joint, allowing for relative calculations.
+    // These are initialized in the Start() method.
     Quaternion initialSwingRotation;
     Quaternion initialBoomRotation;
     Quaternion initialArmRotation;
@@ -58,7 +75,15 @@ public class GeminiRoboticsTest : MonoBehaviour
         setPose(Mathf.PI/2, Mathf.PI/2, Mathf.PI/2, Mathf.PI/2);
 
         // Call the IKTest method after 2 seconds to start the IK process.
-        Invoke("IKTest", 2f);
+        if (ikTestMode) {
+            Invoke("IKTest", 2f);
+        }
+
+        // Instantiate the GeminiRoboticsApi
+        geminiRoboticsApi = new GeminiRoboticsApi();
+
+        // Add a listener to the detect button to trigger the object detection process.
+        buttonDetect.onClick.AddListener(OnDetectButtonClicked);
     }
 
     void Update()
@@ -76,6 +101,33 @@ public class GeminiRoboticsTest : MonoBehaviour
         // Ensures the CancellationTokenSource is cancelled and disposed to prevent memory leaks.
         _ikMoveCts?.Cancel();
         _ikMoveCts?.Dispose();
+    }
+
+    /// <summary>
+    /// Handles the click event for the "Detect" button.
+    /// Captures an image, sends it to the Gemini API for object detection, and logs the results.
+    /// </summary>
+    private async void OnDetectButtonClicked()
+    {
+        if (cameraCapture == null || geminiRoboticsApi == null)
+        {
+            Debug.LogError("CameraCapture or GeminiRoboticsApi is not assigned.");
+            return;
+        }
+
+        // Capture the image from the camera as a base64 string.
+        string b64Image = cameraCapture.CaptureAsBase64();
+
+        // Send the image to the Gemini API and wait for the detected objects.
+        var detectedObjects = await geminiRoboticsApi.DetectObjects(b64Image);
+
+        // Log the detected objects to the console.
+        Debug.Log($"Detected {detectedObjects.Length} objects.");
+        foreach (var obj in detectedObjects)
+        {
+            Debug.Log($"- Label: {obj.label}, Point: ({obj.point.x}, {obj.point.y})");
+            this.detectedObjects.displayDetectionPosition(new DetectedObject[] { obj });
+        }
     }
 
     /* This function is the core implementation of the inverse kinematics (IK) for the robot arm.
