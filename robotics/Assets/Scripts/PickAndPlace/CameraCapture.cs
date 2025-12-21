@@ -53,27 +53,23 @@ public class CameraCapture : MonoBehaviour
     /// <returns>A Base64 encoded string of the captured JPG image.</returns>
     public string CaptureAsBase64()
     {
-        // Create a temporary RenderTexture to hold the camera's view.
+        // Render the camera's view to a temporary RenderTexture.
         RenderTexture renderTexture = RenderTexture.GetTemporary(imageWidth, imageHeight, 24);
 
-        // Set the camera's target to our temporary RenderTexture.
         var previousTargetTexture = captureCamera.targetTexture;
         captureCamera.targetTexture = renderTexture;
 
-        // Manually render the camera's view.
         captureCamera.Render();
 
-        // Set the temporary RenderTexture as the active one to read from.
         RenderTexture.active = renderTexture;
 
-        // Create a new Texture2D to receive the pixel data.
+        // Read the pixels from the RenderTexture into a new Texture2D.
         Texture2D capturedImage = new Texture2D(imageWidth, imageHeight, TextureFormat.RGB24, false);
 
-        // Read the pixels from the active RenderTexture into the Texture2D.
         capturedImage.ReadPixels(new Rect(0, 0, imageWidth, imageHeight), 0, 0);
         capturedImage.Apply();
 
-        // Clean up: reset the camera's target and release the temporary RenderTexture.
+        // Restore the camera's target texture and release the temporary RenderTexture.
         captureCamera.targetTexture = previousTargetTexture;
         RenderTexture.active = null;
         RenderTexture.ReleaseTemporary(renderTexture);
@@ -81,7 +77,7 @@ public class CameraCapture : MonoBehaviour
         // If an output RawImage is assigned, display the captured image.
         if (outputRawImage != null)
         {
-            // To prevent memory leaks, destroy the old texture before assigning a new one.
+            // Destroy the previous texture to prevent memory leaks before assigning the new one.
             if (outputRawImage.texture != null)
 #if UNITY_EDITOR
                 // Use DestroyImmediate in the editor to avoid errors about destroying assets.

@@ -28,7 +28,7 @@ public class Vector2IntConverter : JsonConverter<Vector2Int>
             var array = JArray.Load(reader);
             if (array.Count == 2 && array[0].Type == JTokenType.Integer && array[1].Type == JTokenType.Integer)
             {
-                // The prompt asks for [y, x], so we need to swap them for Vector2Int(x, y).
+                // The API returns points as [y, x] (row, column), so we swap them to [x, y] for Unity's Vector2Int.
                 return new Vector2Int(array[1].Value<int>(), array[0].Value<int>());
             }
         }
@@ -66,8 +66,7 @@ public class GeminiRoboticsApi
     /// <returns>A task that resolves to an array of DetectedObject structs.</returns>
     public async Task<DetectedObject[]> DetectObjects(string base64Image)
     {
-        // The user has requested to remove the JSON schema.
-        // The prompt now explicitly asks for the JSON format, based on the provided curl example.
+        // The prompt explicitly defines the expected JSON structure, so we pass null for the jsonSchema parameter.
         string query = "Point to no more than 10 items in the image. The label returned should be an identifying name for the object detected. The answer should follow the json format: [{\"point\": [y, x], \"label\": \"<label1>\"}, ...]. The points are in [y, x] format normalized to 0-1000.";
 
         var images = new List<string> { base64Image };

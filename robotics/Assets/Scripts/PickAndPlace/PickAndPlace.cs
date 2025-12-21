@@ -2,12 +2,13 @@ using UnityEngine;
 using System.Threading;
 using System.Threading.Tasks;
 using Vector3 = UnityEngine.Vector3;
-using Quaternion = UnityEngine.Quaternion;
-using TMPro;
 using UnityEngine.UI;
 
-// This class implements inverse kinematics (IK) for a robot arm, calculating the joint angles required to reach a target and smoothly animating the robot's movement.
-public class GeminiRoboticsTest : MonoBehaviour
+/// <summary>
+/// Implements inverse kinematics (IK) for a robot arm to pick and place objects.
+/// It calculates the required joint angles to reach a target and animates the movement.
+/// </summary>
+public class PickAndPlace : MonoBehaviour
 {
     // --- Fields ---
 
@@ -17,6 +18,11 @@ public class GeminiRoboticsTest : MonoBehaviour
     // The target GameObject that the robot arm's end effector will attempt to reach.
     [Header("IK Target")]
     [SerializeField] GameObject work;
+
+    // Inverse kinematics behavior settings.
+    [Header("IK Settings")]
+    [Tooltip("The duration in seconds for the IK movement to complete.")]
+    [SerializeField] private float ikMoveDuration = 2.0f;
 
     [Header("Robot Base")]
     [SerializeField] GameObject robotBase;
@@ -31,15 +37,10 @@ public class GeminiRoboticsTest : MonoBehaviour
     [Header("End Effector")]
     [SerializeField] GameObject finger;
 
-    // Inverse kinematics behavior settings.
-    [Header("IK Settings")]
-    [Tooltip("The duration in seconds for the IK movement to complete.")]
-    [SerializeField] private float ikMoveDuration = 1.0f;
-
     [Header("Coordinate Display")]
-    [SerializeField] TMP_Text handTargetPosX;
-    [SerializeField] TMP_Text handTargetPosY;
-    [SerializeField] TMP_Text handTargetPosZ;
+    [SerializeField] Coordinate coordinateFinger;
+    [SerializeField] Coordinate coordinatePick;
+    [SerializeField] Coordinate coordinatePlace;
 
     [Header("Operation buttons")]
     [SerializeField] Button buttonDetect;
@@ -49,34 +50,46 @@ public class GeminiRoboticsTest : MonoBehaviour
 
     [Header("Components")]
     [SerializeField] private CameraCapture cameraCapture;
-    [SerializeField] private DetectedObjects detectedObjects;
+    [SerializeField] private DetectedPoints detectedPoints;
     private GeminiRoboticsApi geminiRoboticsApi;
 
-    // A CancellationTokenSource for canceling the in-progress asynchronous movement task.
+    // Used to cancel the in-progress asynchronous movement task.
     private CancellationTokenSource _ikMoveCts;
 
-    // Stores the initial rotation of each joint, allowing for relative calculations.
-    // These are initialized in the Start() method.
+    // Stores the initial rotation of each joint, allowing for relative
+    // calculations. These are initialized in the Start() method.
     Quaternion initialSwingRotation;
     Quaternion initialBoomRotation;
     Quaternion initialArmRotation;
     Quaternion initialHandRotation;
 
-    // Called once before the first frame update. Initializes the robot's joint rotations and schedules the first IK calculation.
+    // Robot arm segment lengths (in meters).
+    const float AB = 0.169f;
+    const float CD = 0.273f;
+    const float HANDSIZE = 0.325f;
+    const float GF = HANDSIZE - CD;
+    const float FE = 0.49727f;
+    const float ED = 0.70142f;
+
+    /// <summary>
+    /// Initializes the robot arm's joint rotations, sets the initial pose,
+    /// and subscribes to UI button events.
+    /// </summary>
     void Start()
     {
-        // Capture the initial local rotation of each bone.
+        // Store the initial local rotations to use as a reference for relative movements.
         initialSwingRotation = swingAxis.transform.localRotation;
         initialBoomRotation = boomAxis.transform.localRotation;
         initialArmRotation = armAxis.transform.localRotation;
         initialHandRotation = handAxis.transform.localRotation;
 
         // Set the initial pose of the robot arm.
-        setPose(Mathf.PI/2, Mathf.PI/2, Mathf.PI/2, Mathf.PI/2);
+        setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
 
-        // Call the IKTest method after 2 seconds to start the IK process.
-        if (ikTestMode) {
-            Invoke("IKTest", 2f);
+        // If in test mode, trigger the IK test sequence after a short delay.
+        if (ikTestMode)
+        {
+            Invoke(nameof(PerformIK), 2f);
         }
 
         // Instantiate the GeminiRoboticsApi
@@ -86,19 +99,21 @@ public class GeminiRoboticsTest : MonoBehaviour
         buttonDetect.onClick.AddListener(OnDetectButtonClicked);
     }
 
+    /// <summary>
+    /// Called every frame. Updates the displayed coordinates of the end effector.
+    /// </summary>
     void Update()
     {
-        Vector3 handTargetPos = robotBase.transform.InverseTransformPoint(finger.transform.position);
-
-        handTargetPosX.text = $"x: {handTargetPos.x.ToString("F3")}";
-        handTargetPosY.text = $"y: {handTargetPos.y.ToString("F3")}";
-        handTargetPosZ.text = $"z: {handTargetPos.z.ToString("F3")}";
+        Vector3 fingerPos = robotBase.transform.InverseTransformPoint(finger.transform.position);
+        coordinateFinger.UpdatePositionText(fingerPos);
     }
 
-    // Called when the MonoBehaviour is destroyed.
+    /// <summary>
+    /// Called when the MonoBehaviour is destroyed. Cancels any ongoing asynchronous tasks.
+    /// </summary>
     void OnDestroy()
     {
-        // Ensures the CancellationTokenSource is cancelled and disposed to prevent memory leaks.
+        // Cancel and dispose the CancellationTokenSource to prevent memory leaks.
         _ikMoveCts?.Cancel();
         _ikMoveCts?.Dispose();
     }
@@ -119,34 +134,31 @@ public class GeminiRoboticsTest : MonoBehaviour
         string b64Image = cameraCapture.CaptureAsBase64();
 
         // Send the image to the Gemini API and wait for the detected objects.
-        var detectedObjects = await geminiRoboticsApi.DetectObjects(b64Image);
+        var objectObjects = await geminiRoboticsApi.DetectObjects(b64Image);
 
         // Log the detected objects to the console.
-        Debug.Log($"Detected {detectedObjects.Length} objects.");
-        foreach (var obj in detectedObjects)
+        Debug.Log($"Detected {objectObjects.Length} objects.");
+
+        // Clear previous detections and display the new ones.
+        detectedPoints.clear();
+
+        // Display each detected object and log its details.
+        foreach (var obj in objectObjects)
         {
             Debug.Log($"- Label: {obj.label}, Point: ({obj.point.x}, {obj.point.y})");
-            this.detectedObjects.displayDetectionPosition(new DetectedObject[] { obj });
+            // Display the detected object on the UI.
+            detectedPoints.displayDetectionPosition(obj);
         }
     }
 
-    /* This function is the core implementation of the inverse kinematics (IK) for the robot arm.
-     * It calculates the necessary joint angles (theta values) to position the end effector (hand)
-     * at the target position defined by the 'work' GameObject.
-     * The calculation is based on the geometric relationships of the robot arm's segments,
-     * solving a 2D planar IK problem.
-     */
-    public async void IKTest()
+    /// <summary>
+    /// Performs inverse kinematics to calculate the joint angles required to reach the target.
+    /// It solves a 2D planar IK problem based on the geometric relationships of the robot arm's segments
+    /// and then initiates the robot arm's movement.
+    /// </summary>
+    public async void PerformIK()
     {
-        // Define the fixed lengths of each segment of the robot arm.
-        const float AB = 0.169f;
-        const float CD = 0.273f;
-        const float HANDSIZE = 0.325f;
-        const float GF = HANDSIZE - CD;
-        const float FE = 0.49727f;
-        const float ED = 0.70142f;
-
-        // Get the target position from the 'work' GameObject in local space and perform geometric calculations.
+        // Calculate the target position relative to the robot base.
         Vector3 A = work.transform.localPosition;
         Debug.Log("Work position: " + A.ToString("F4"));
 
@@ -169,7 +181,7 @@ public class GeminiRoboticsTest : MonoBehaviour
         float r = Mathf.Sqrt(BC * BC + GF * GF);
         Debug.Log("r: " + r.ToString("F4"));
 
-        // Use the law of cosines to find the internal angles of the arm's triangles.
+        // Calculate internal angles using the Law of Cosines.
         float theat6 = Mathf.Acos((FE * FE - ED * ED - r * r) / (-2 * ED * r));
         float theat7 = Mathf.Acos((r * r - FE * FE - ED * ED) / (-2 * FE * ED));
         Debug.Log("Theta6: " + (theat6 * Mathf.Rad2Deg).ToString("F4"));
@@ -195,27 +207,35 @@ public class GeminiRoboticsTest : MonoBehaviour
             _ikMoveCts.Dispose();
         }
 
-        // Create a new CancellationTokenSource and start the movement task.
+        // Start the asynchronous movement task, allowing for cancellation.
         _ikMoveCts = new CancellationTokenSource();
         var newTargets = CalculateTargetPose(theta2, theat4, theat7, theat8);
         await MoveToTargets(newTargets.swing, newTargets.boom, newTargets.arm, newTargets.hand, ikMoveDuration, _ikMoveCts.Token);
     }
 
-    // Directly sets the pose of the robot arm's joints to the specified angles.
+    /// <summary>
+    /// Directly sets the pose of the robot arm's joints to the specified angles without animation.
+    /// </summary>
+    /// <param name="swingAngle">The angle for the swing joint in radians.</param>
+    /// <param name="boomAngle">The angle for the boom joint in radians.</param>
+    /// <param name="armAngle">The angle for the arm joint in radians.</param>
+    /// <param name="handAngle">The angle for the hand joint in radians.</param>
     void setPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
     {
-        // Apply rotations relative to the initial orientation of each joint.
-        swingAxis.transform.localRotation = initialSwingRotation * Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
-        boomAxis.transform.localRotation = initialBoomRotation * Quaternion.AngleAxis(boomAngle * Mathf.Rad2Deg, -Vector3.up);
-        armAxis.transform.localRotation = initialArmRotation * Quaternion.AngleAxis(armAngle * Mathf.Rad2Deg, Vector3.up);
-        handAxis.transform.localRotation = initialHandRotation * Quaternion.AngleAxis(handAngle * Mathf.Rad2Deg, Vector3.up);
+        // Apply rotations relative to the initial state.
+        swingAxis.transform.localRotation = initialSwingRotation * UnityEngine.Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
+        boomAxis.transform.localRotation = initialBoomRotation * UnityEngine.Quaternion.AngleAxis(boomAngle * Mathf.Rad2Deg, -Vector3.up);
+        armAxis.transform.localRotation = initialArmRotation * UnityEngine.Quaternion.AngleAxis(armAngle * Mathf.Rad2Deg, Vector3.up);
+        handAxis.transform.localRotation = initialHandRotation * UnityEngine.Quaternion.AngleAxis(handAngle * Mathf.Rad2Deg, Vector3.up);
 
-        // When setting the pose directly, also update the target rotations to prevent unintended smooth movements by Update().
         var newTargets = CalculateTargetPose(swingAngle, boomAngle, armAngle, handAngle);
     }
 
-    // Calculates the target rotations determined by the IK solver.
-    (Quaternion swing, Quaternion boom, Quaternion arm, Quaternion hand) CalculateTargetPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
+    /// <summary>
+    /// Calculates the target world-space rotations for each joint based on the IK solver's angle results.
+    /// </summary>
+    /// <returns>A tuple containing the target quaternions for each joint.</returns>
+    (UnityEngine.Quaternion swing, UnityEngine.Quaternion boom, UnityEngine.Quaternion arm, UnityEngine.Quaternion hand) CalculateTargetPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
     {
         // Calculate the target rotation for each joint relative to its initial orientation.
         var swing = initialSwingRotation * Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
@@ -225,8 +245,16 @@ public class GeminiRoboticsTest : MonoBehaviour
         return (swing, boom, arm, hand);
     }
 
-    // Asynchronously moves the robot's joints smoothly from their current rotation to the target rotations over a specified duration.
-    private async Task MoveToTargets(Quaternion swingTarget, Quaternion boomTarget, Quaternion armTarget, Quaternion handTarget, float duration, CancellationToken cancellationToken)
+    /// <summary>
+    /// Asynchronously moves the robot's joints smoothly from their current rotation to the target rotations over a specified duration.
+    /// </summary>
+    /// <param name="swingTarget">The target rotation for the swing joint.</param>
+    /// <param name="boomTarget">The target rotation for the boom joint.</param>
+    /// <param name="armTarget">The target rotation for the arm joint.</param>
+    /// <param name="handTarget">The target rotation for the hand joint.</param>
+    /// <param name="duration">The time in seconds the movement should take.</param>
+    /// <param name="cancellationToken">A token to allow for cancellation of the movement task.</param>
+    private async Task MoveToTargets(UnityEngine.Quaternion swingTarget, UnityEngine.Quaternion boomTarget, UnityEngine.Quaternion armTarget, UnityEngine.Quaternion handTarget, float duration, CancellationToken cancellationToken)
     {
         // Capture the starting rotation of each joint.
         Quaternion startSwing = swingAxis.transform.localRotation;
@@ -234,7 +262,7 @@ public class GeminiRoboticsTest : MonoBehaviour
         Quaternion startArm = armAxis.transform.localRotation;
         Quaternion startHand = handAxis.transform.localRotation;
         float elapsedTime = 0f;
-        
+
         try
         {
             // Loop until the elapsed time reaches the specified duration.
@@ -242,19 +270,19 @@ public class GeminiRoboticsTest : MonoBehaviour
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Interpolate the rotation of each joint using Slerp.
+                // Smoothly interpolate joint rotations.
                 float t = elapsedTime / duration;
-                swingAxis.transform.localRotation = Quaternion.Slerp(startSwing, swingTarget, t);
-                boomAxis.transform.localRotation = Quaternion.Slerp(startBoom, boomTarget, t);
-                armAxis.transform.localRotation = Quaternion.Slerp(startArm, armTarget, t);
-                handAxis.transform.localRotation = Quaternion.Slerp(startHand, handTarget, t);
-                
+                swingAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startSwing, swingTarget, t);
+                boomAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startBoom, boomTarget, t);
+                armAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startArm, armTarget, t);
+                handAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startHand, handTarget, t);
+
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
                 await Task.Yield();
             }
 
-            // Ensure the final rotation is set exactly to the target in case of any minor timing inaccuracies.
+            // Snap to the final target rotations to ensure precision.
             swingAxis.transform.localRotation = swingTarget;
             boomAxis.transform.localRotation = boomTarget;
             armAxis.transform.localRotation = armTarget;
@@ -262,7 +290,7 @@ public class GeminiRoboticsTest : MonoBehaviour
         }
         catch (TaskCanceledException)
         {
-            // The task was canceled, which is an expected behavior when a new move command is issued.
+            // Gracefully handle task cancellation (e.g., if a new movement command interrupts this one).
         }
     }
 }

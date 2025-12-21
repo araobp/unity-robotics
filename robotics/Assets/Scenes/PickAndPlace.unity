@@ -418,7 +418,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -1, z: -0, w: 0}
   m_LocalPosition: {x: -0.565, y: 0.001, z: 0}
-  m_LocalScale: {x: 0.05, y: 0.05, z: 0.05}
+  m_LocalScale: {x: 0.05, y: 0.05, z: 0.03}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1403536111}
@@ -706,17 +706,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 3731176288248803819, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
   m_PrefabInstance: {fileID: 1292015821}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &534922793 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 4524163225443312059, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
-  m_PrefabInstance: {fileID: 7949925975625220338}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1 &693024119
 GameObject:
   m_ObjectHideFlags: 0
@@ -1002,11 +991,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 4753365431795852038, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
   m_PrefabInstance: {fileID: 1292015821}
   m_PrefabAsset: {fileID: 0}
---- !u!20 &796624385 stripped
-Camera:
-  m_CorrespondingSourceObject: {fileID: 1444063569838546549, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
-  m_PrefabInstance: {fileID: 1292015821}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &802721199
 GameObject:
   m_ObjectHideFlags: 0
@@ -1157,7 +1141,7 @@ GameObject:
   - component: {fileID: 824304243}
   - component: {fileID: 824304242}
   m_Layer: 5
-  m_Name: Panel
+  m_Name: PanelCoordinates
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1313,17 +1297,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 2639066622489541534, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
   m_PrefabInstance: {fileID: 1292015821}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &993624761 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 2254443166200543759, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
-  m_PrefabInstance: {fileID: 7949925975625220338}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1001 &995803921
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1334,7 +1307,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 79742314452908330, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
       propertyPath: m_Name
-      value: Column (2)
+      value: CoordinateReplace
       objectReference: {fileID: 0}
     - target: {fileID: 1646063265730224809, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
       propertyPath: m_Pivot.x
@@ -1432,17 +1405,17 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 1646063265730224809, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
   m_PrefabInstance: {fileID: 1379095940}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &1090261584 stripped
+--- !u!114 &1004207195 stripped
 MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1255825663506529296, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
-  m_PrefabInstance: {fileID: 7949925975625220338}
+  m_CorrespondingSourceObject: {fileID: 2058285636854985468, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
+  m_PrefabInstance: {fileID: 1379095940}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Script: {fileID: 11500000, guid: d7dea32f3add648fc96c1201153b673f, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
+  m_EditorClassIdentifier: Assembly-CSharp::Coordinate
 --- !u!1 &1185381030
 GameObject:
   m_ObjectHideFlags: 0
@@ -1940,6 +1913,17 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &1230149235 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2058285636854985468, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
+  m_PrefabInstance: {fileID: 7949925975625220338}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7dea32f3add648fc96c1201153b673f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Coordinate
 --- !u!1001 &1292015821
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2032,6 +2016,10 @@ PrefabInstance:
       propertyPath: m_NormalizedViewPortRect.height
       value: 0.5
       objectReference: {fileID: 0}
+    - target: {fileID: -577658546333185531, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: c450ed991dda94c48ac30a3beb484277, type: 2}
     - target: {fileID: -415136158766342463, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       propertyPath: m_CameraType
       value: 0
@@ -2039,6 +2027,42 @@ PrefabInstance:
     - target: {fileID: -415136158766342463, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       propertyPath: m_RenderPostProcessing
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: field of view
+      value: 35.983395
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_FOVAxisMode
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_FocalLength
+      value: 25.706657
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_GateFitMode
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_SensorSize.x
+      value: 36
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_SensorSize.y
+      value: 24
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_TargetTexture
+      value: 
+      objectReference: {fileID: 8400000, guid: 8f5deb861e717424a976d9b17e47b25d, type: 2}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: near clip plane
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      propertyPath: m_projectionMatrixMode
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       propertyPath: m_Name
@@ -2182,7 +2206,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 79742314452908330, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
       propertyPath: m_Name
-      value: Column (1)
+      value: CoordinatePick
       objectReference: {fileID: 0}
     - target: {fileID: 1646063265730224809, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
       propertyPath: m_Pivot.x
@@ -2380,6 +2404,11 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1443040795}
   m_CullTransparentMesh: 1
+--- !u!20 &1461759060 stripped
+Camera:
+  m_CorrespondingSourceObject: {fileID: 654790288163646074, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+  m_PrefabInstance: {fileID: 1292015821}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1471382882 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -7895999943632268731, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
@@ -2607,7 +2636,7 @@ Camera:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RenderingPath: -1
-  m_TargetTexture: {fileID: 8400000, guid: c3550b07866644671a92e27234d7b3d1, type: 2}
+  m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
   m_TargetEye: 3
   m_HDR: 1
@@ -2945,22 +2974,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GeminiRobotTest
   ikTestMode: 0
   work: {fileID: 131571065}
+  ikMoveDuration: 1
   robotBase: {fileID: 1403536110}
   swingAxis: {fileID: 965729776}
   boomAxis: {fileID: 1568709643}
   armAxis: {fileID: 451412519}
   handAxis: {fileID: 777544276}
   finger: {fileID: 747087487}
-  ikMoveDuration: 1
-  handTargetPosX: {fileID: 993624761}
-  handTargetPosY: {fileID: 534922793}
-  handTargetPosZ: {fileID: 1090261584}
+  coordinateFinger: {fileID: 1230149235}
+  coordinatePick: {fileID: 1004207195}
+  coordinatePlace: {fileID: 1794102305}
   buttonDetect: {fileID: 2113116254}
   buttonPick: {fileID: 1185381032}
   buttonPlace: {fileID: 410885299}
   buttonReset: {fileID: 63351416}
   cameraCapture: {fileID: 1700335742}
-  detectedObjects: {fileID: 1700335743}
+  detectedPoints: {fileID: 1700335743}
 --- !u!114 &1700335742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2973,7 +3002,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eff76bbdceefb4d4b8b22d3db25be5aa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraCapture
-  captureCamera: {fileID: 796624385}
+  captureCamera: {fileID: 1461759060}
   imageWidth: 1280
   imageHeight: 720
   outputRawImage: {fileID: 1376629036}
@@ -2991,6 +3020,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
   detectedPointPrefab: {fileID: 79742314452908330, guid: 195cde43a5e4745f39a6ca5c8dde9a5f, type: 3}
   targetRawImage: {fileID: 1376629036}
+--- !u!114 &1794102305 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2058285636854985468, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
+  m_PrefabInstance: {fileID: 995803921}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7dea32f3add648fc96c1201153b673f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Coordinate
 --- !u!1 &2113116252
 GameObject:
   m_ObjectHideFlags: 0
@@ -3122,7 +3162,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 79742314452908330, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
       propertyPath: m_Name
-      value: Column
+      value: CoordinateFinger
       objectReference: {fileID: 0}
     - target: {fileID: 1646063265730224809, guid: 5ede2f5a4a1b2485f858aa84ecfe8d22, type: 3}
       propertyPath: m_Pivot.x
