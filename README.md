@@ -56,3 +56,6 @@ https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 ## References
 
 - [Gemini Robotics Overview](https://ai.google.dev/gemini-api/docs/robotics-overview?_gl=1*1lzll2v*_up*MQ..&gclid=CjwKCAiA_orJBhBNEiwABkdmjD7r9CFuZHP7R-rxSMY2zKyRX-Tw3V5xUH2feDADA1mCxsFDtQjQxxoCq18QAvD_BwE&gclsrc=aw.ds&gbraid=0AAAAACn9t67tI7rvJei_ADOP4vnyAYNGl)
+- [Gemini Robotics 1.5: Pushing the Frontier of
+Generalist Robots with Advanced Embodied
+Reasoning, Thinking, and Motion Transfer](https://arxiv.org/pdf/2510.03342)
