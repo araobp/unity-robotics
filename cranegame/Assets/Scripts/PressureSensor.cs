@@ -38,6 +38,12 @@ public class PressureSensor : MonoBehaviour
         get { return _lastPressure; }
     }
 
+    public bool _onCollisionEntered = false;
+    public bool OnCollisionEntered
+    {
+        get { return _onCollisionEntered; }
+    }
+
 
     /// <summary>
     /// Called by Unity when a collision first occurs.
@@ -46,6 +52,7 @@ public class PressureSensor : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         CalculatePressure(collision);
+        _onCollisionEntered = true;
     }
 
     /// <summary>
@@ -57,6 +64,11 @@ public class PressureSensor : MonoBehaviour
         // Use Stay if you want to detect pressure while 
         // one object is crushing another.
         CalculatePressure(collision);
+    }
+
+    void OnCollisionExit(Collision collision)
+    {
+        _onCollisionEntered = false;
     }
 
     /// <summary>

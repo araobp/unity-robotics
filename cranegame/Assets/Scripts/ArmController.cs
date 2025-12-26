@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -26,16 +27,16 @@ public class ArmController : MonoBehaviour
     /// <summary>
     /// The angle of the finger joints when the grip is fully closed.
     /// </summary>
-    public float closedAngle = 45.0f;
+    public float closedAngle = 10.0f;
     /// <summary>
     /// The angle of the finger joints when the grip is fully open.
     /// </summary>
-    public float openAngle = 0.0f;
+    public float openAngle = -20.0f;
 
     /// <summary>
     /// The force threshold for the pressure sensors to stop the grip from closing.
     /// </summary>
-    public float targetForce = 1.0f;
+    public float targetForce = 3.0f;
 
     // GameObjects for the left and right fingers.
     [SerializeField] GameObject fingerL;
@@ -58,6 +59,31 @@ public class ArmController : MonoBehaviour
 
     // Stores the grip angle from the previous frame to detect changes.
     private float lastGripAngle = 0.0f;
+
+
+    [SerializeField] TMP_Text info;
+
+    const float SLIDER_MAX = 0.414f;
+    const float SLIDER_MIN = -0.414f;
+
+    const float ARM_MAX = 0.377f;
+    const float ARM_MIN = -0.377f;
+
+    const float HAND_MAX = 0.158f;
+    const float HAND_MIN = -0.032f;
+
+    void Update()
+    {
+        if (info != null && sliderJoint != null && armJoint != null && handJoint != null)
+        {
+            info.text = $"Slider: {sliderJoint.connectedAnchor.x:F3}\n" +
+                        $"Arm: {armJoint.connectedAnchor.y:F3}\n" +
+                        $"Hand: {handJoint.connectedAnchor.z:F3}\n" +
+                        $"Grip Angle: {targetGripAngle:F1}\n" +
+                        $"Force L: {pressureSensorL.LastForce:F2}\n" +
+                        $"Force R: {pressureSensorR.LastForce:F2}";
+        }
+    }
 
     /// <summary>
     /// Called once before the first frame update. Initializes components and settings.
@@ -113,10 +139,12 @@ public class ArmController : MonoBehaviour
             var anchor = sliderJoint.connectedAnchor;
             if (Keyboard.current.aKey.isPressed)
             {
+                if (anchor.x <= SLIDER_MIN) return;
                 anchor.x -= speed * Time.deltaTime;
             }
             else if (Keyboard.current.dKey.isPressed)
             {
+                if (anchor.x >= SLIDER_MAX) return;
                 anchor.x += speed * Time.deltaTime;
 
             }
@@ -129,10 +157,12 @@ public class ArmController : MonoBehaviour
             var anchor = armJoint.connectedAnchor;
             if (Keyboard.current.wKey.isPressed)
             {
+                if (anchor.y <= ARM_MIN) return;
                 anchor.y -= speed * Time.deltaTime;
             }
             else if (Keyboard.current.sKey.isPressed)
             {
+                if (anchor.y >= ARM_MAX) return;
                 anchor.y += speed * Time.deltaTime;
             }
             armJoint.connectedAnchor = anchor;
@@ -144,19 +174,22 @@ public class ArmController : MonoBehaviour
             var anchor = handJoint.connectedAnchor;
             if (Keyboard.current.upArrowKey.isPressed)
             {
+                if (anchor.z >= HAND_MAX) return;
                 anchor.z += speed * Time.deltaTime;
             }
             else if (Keyboard.current.downArrowKey.isPressed)
             {
+                if (anchor.z <= HAND_MIN) return;
                 anchor.z -= speed * Time.deltaTime;
             }
             handJoint.connectedAnchor = anchor;
         }
 
         // Adjust the target grip angle based on left and right arrow key presses.
+        float gripSpeedAdjustment = pressureSensorL.OnCollisionEntered && pressureSensorR.OnCollisionEntered ? gripSpeed / 200.0f : gripSpeed;    
         if (Keyboard.current.leftArrowKey.isPressed)
         {
-            targetGripAngle = Mathf.MoveTowards(targetGripAngle, closedAngle, gripSpeed * Time.deltaTime);
+            targetGripAngle = Mathf.MoveTowards(targetGripAngle, closedAngle, gripSpeedAdjustment * Time.deltaTime);
         }
         else if (Keyboard.current.rightArrowKey.isPressed)
         {
@@ -164,16 +197,16 @@ public class ArmController : MonoBehaviour
         }
 
         // Force feedback: if closing and both fingers detect a force greater than the threshold, stop closing.
-        if (targetGripAngle - lastGripAngle > 0 && pressureSensorL.LastForce > targetForce && pressureSensorR.LastForce > targetForce)
+        if (targetGripAngle - lastGripAngle > 0 && pressureSensorL.LastForce  > targetForce && pressureSensorR.LastForce > targetForce)
         {
-            targetGripAngle = lastGripAngle;
+            targetGripAngle = lastGripAngle - 0.001f * (pressureSensorL.LastForce + pressureSensorR.LastForce - 2 * targetForce);
         }
 
         // Apply the target grip angle to the left finger's hinge joint limits.
         if (hingeL != null && hingeL.useLimits)
         {
             var limits = hingeL.limits;
-            limits.min = targetGripAngle - 1;
+            limits.min = targetGripAngle-0.01f;
             limits.max = targetGripAngle;
             hingeL.limits = limits;
         }
@@ -182,7 +215,7 @@ public class ArmController : MonoBehaviour
         if (hingeR != null && hingeR.useLimits)
         {
             var limits = hingeR.limits;
-            limits.min = targetGripAngle - 1;
+            limits.min = targetGripAngle-0.01f;
             limits.max = targetGripAngle;
             hingeR.limits = limits;
         }
