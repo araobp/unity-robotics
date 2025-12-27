@@ -15,7 +15,7 @@ public class PressureSensor : MonoBehaviour
     /// <summary>
     /// Backing field for the last calculated force in Newtons.
     /// </summary>
-    public float _lastForce = 0f;
+    private float _lastForce = 0f;
 
     /// <summary>
     /// Public property to get the last calculated force.
@@ -28,7 +28,7 @@ public class PressureSensor : MonoBehaviour
     /// <summary>
     /// Backing field for the last calculated pressure.
     /// </summary>
-    public float _lastPressure = 0f;
+    private float _lastPressure = 0f;
 
     /// <summary>
     /// Public property to get the last calculated pressure.
@@ -38,12 +38,23 @@ public class PressureSensor : MonoBehaviour
         get { return _lastPressure; }
     }
 
+    private float _lastMass = 0f;
+    public float LastMass
+    {
+        get { return _lastMass; }
+    }
+
+    private float _lastFriction = 0f;
+    public float LastFriction
+    {
+        get { return _lastFriction; }
+    }
+
     public bool _onCollisionEntered = false;
     public bool OnCollisionEntered
     {
         get { return _onCollisionEntered; }
     }
-
 
     /// <summary>
     /// Called by Unity when a collision first occurs.
@@ -52,6 +63,9 @@ public class PressureSensor : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         CalculatePressure(collision);
+        _lastMass = collision.rigidbody.mass;
+        Collider col = GetComponent<Collider>();
+        _lastFriction = (collision.collider.material.staticFriction + col.material.staticFriction)/2.0f;
         _onCollisionEntered = true;
     }
 
@@ -69,6 +83,10 @@ public class PressureSensor : MonoBehaviour
     void OnCollisionExit(Collision collision)
     {
         _onCollisionEntered = false;
+        _lastMass = 0f;
+        _lastFriction = 0f;
+        _lastForce = 0f;
+        _lastPressure = 0f;
     }
 
     /// <summary>
@@ -91,6 +109,7 @@ public class PressureSensor : MonoBehaviour
             _lastForce = impulse / Time.fixedDeltaTime;
             // We approximate the area of contact by the number of contact points.
             _lastPressure = _lastForce / contactCount;
+
             Debug.Log($"Force detected: {_lastForce} on {gameObject.name}");
             Debug.Log($"Pressure detected: {_lastPressure} on {gameObject.name}");
         }

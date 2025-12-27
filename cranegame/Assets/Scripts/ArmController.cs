@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 /// <summary>
 /// Controls a robotic arm's movement and grip using keyboard input.
@@ -36,7 +37,7 @@ public class ArmController : MonoBehaviour
     /// <summary>
     /// The force threshold for the pressure sensors to stop the grip from closing.
     /// </summary>
-    public float targetForce = 3.0f;
+    private float _targetForce = 1.0f;
 
     // GameObjects for the left and right fingers.
     [SerializeField] GameObject fingerL;
@@ -61,27 +62,84 @@ public class ArmController : MonoBehaviour
     private float lastGripAngle = 0.0f;
 
 
-    [SerializeField] TMP_Text info;
+    // UI Text element to display arm's status information.
+    [SerializeField] TMP_Text textInfo;
+    [SerializeField] TMP_Text textTargetForce;
+    [SerializeField] Slider sliderTargetForce;
 
+    /// <summary>
+    /// The maximum position for the slider joint.
+    /// </summary>
     const float SLIDER_MAX = 0.414f;
+    /// <summary>
+    /// The minimum position for the slider joint.
+    /// </summary>
     const float SLIDER_MIN = -0.414f;
 
+    /// <summary>
+    /// The maximum position for the arm joint.
+    /// </summary>
     const float ARM_MAX = 0.377f;
+    /// <summary>
+    /// The minimum position for the arm joint.
+    /// </summary>
     const float ARM_MIN = -0.377f;
 
+    /// <summary>
+    /// The maximum position for the hand joint.
+    /// </summary>
     const float HAND_MAX = 0.158f;
+    /// <summary>
+    /// The minimum position for the hand joint.
+    /// </summary>
     const float HAND_MIN = -0.032f;
 
+    /// <summary>
+    /// Updates the UI text with the current status of the arm's joints and sensors.
+    /// </summary>
     void Update()
     {
-        if (info != null && sliderJoint != null && armJoint != null && handJoint != null)
+        if (textInfo != null && sliderJoint != null && armJoint != null && handJoint != null)
         {
-            info.text = $"Slider: {sliderJoint.connectedAnchor.x:F3}\n" +
-                        $"Arm: {armJoint.connectedAnchor.y:F3}\n" +
-                        $"Hand: {handJoint.connectedAnchor.z:F3}\n" +
-                        $"Grip Angle: {targetGripAngle:F1}\n" +
-                        $"Force L: {pressureSensorL.LastForce:F2}\n" +
-                        $"Force R: {pressureSensorR.LastForce:F2}";
+            float forceL = pressureSensorL != null ? pressureSensorL.LastForce : 0.0f;
+            float forceR = pressureSensorR != null ? pressureSensorR.LastForce : 0.0f;
+            float force = (forceL + forceR) / 2.0f;
+            float mass = (pressureSensorL != null && pressureSensorR != null) ?
+                (pressureSensorL.LastMass + pressureSensorR.LastMass) / 2.0f : 0.0f;
+
+            // Assuming the real friction value in the real world is multiplied by 2
+            float friction = pressureSensorL != null && pressureSensorR != null ?
+                (pressureSensorL.LastFriction + pressureSensorR.LastFriction) / 2.0f * 2.0f : 0.0f;
+
+            string whiteCode = ColorUtility.ToHtmlStringRGBA(Color.white);
+            string greenCode = ColorUtility.ToHtmlStringRGBA(Color.green);
+            string redCode = ColorUtility.ToHtmlStringRGBA(Color.red);
+
+            float frictionForce = force * friction * 2.0f;
+            float gravityForce = mass * Physics.gravity.magnitude;
+
+            string colorCode;
+            if (frictionForce > 0)
+            {
+                colorCode = frictionForce >= gravityForce ? greenCode : redCode;
+            }
+            else
+            {
+                colorCode = whiteCode;
+            }
+
+            textInfo.text = $"Grip Angle: {targetGripAngle:F1}(deg)\n\n" +
+                        $"Measured Force:\n" +
+                        $"- Force L: {pressureSensorL.LastForce:F1}(N)\n" +
+                        $"- Force R: {pressureSensorR.LastForce:F1}(N)\n" +
+                        $"- Force Avg: {force:F1}(N)\n\n" +
+                        $"Friction Info:\n" +
+                        $"Mass(kg): {mass:F1}(kg)\n" +
+                        $"Friction Coef(μ): {friction:F1}\n" +
+                        $"Friction(2μF): <color=#{colorCode}>{frictionForce:F1}</color>(N) \n" + // Assuming the real friction value in the real world is multiplied by 2
+                        $"Gravity(mg): {gravityForce:F1}(N)";
+
+            textTargetForce.text = $"Target Force: {_targetForce:F1}(N)";
         }
     }
 
@@ -92,7 +150,7 @@ public class ArmController : MonoBehaviour
     {
         // Set a fixed time step for physics calculations to ensure consistent behavior.
         Time.fixedDeltaTime = 0.01f;
-        
+
         // Get the ConfigurableJoint component from the slider GameObject.
         if (slider != null)
         {
@@ -123,6 +181,12 @@ public class ArmController : MonoBehaviour
             hingeR = fingerR.GetComponent<HingeJoint>();
             pressureSensorR = fingerR.GetComponent<PressureSensor>();
         }
+
+        _targetForce = sliderTargetForce.value;
+        sliderTargetForce.onValueChanged.AddListener((value) =>
+        {
+            _targetForce = value;
+        });
     }
 
     /// <summary>
@@ -186,7 +250,7 @@ public class ArmController : MonoBehaviour
         }
 
         // Adjust the target grip angle based on left and right arrow key presses.
-        float gripSpeedAdjustment = pressureSensorL.OnCollisionEntered && pressureSensorR.OnCollisionEntered ? gripSpeed / 200.0f : gripSpeed;    
+        float gripSpeedAdjustment = pressureSensorL.OnCollisionEntered && pressureSensorR.OnCollisionEntered ? gripSpeed / 200.0f : gripSpeed;
         if (Keyboard.current.leftArrowKey.isPressed)
         {
             targetGripAngle = Mathf.MoveTowards(targetGripAngle, closedAngle, gripSpeedAdjustment * Time.deltaTime);
@@ -197,16 +261,16 @@ public class ArmController : MonoBehaviour
         }
 
         // Force feedback: if closing and both fingers detect a force greater than the threshold, stop closing.
-        if (targetGripAngle - lastGripAngle > 0 && pressureSensorL.LastForce  > targetForce && pressureSensorR.LastForce > targetForce)
+        if (targetGripAngle - lastGripAngle > 0 && pressureSensorL.LastForce > _targetForce && pressureSensorR.LastForce > _targetForce)
         {
-            targetGripAngle = lastGripAngle - 0.001f * (pressureSensorL.LastForce + pressureSensorR.LastForce - 2 * targetForce);
+            targetGripAngle = lastGripAngle - 0.002f * (pressureSensorL.LastForce + pressureSensorR.LastForce - 2 * _targetForce);
         }
 
         // Apply the target grip angle to the left finger's hinge joint limits.
         if (hingeL != null && hingeL.useLimits)
         {
             var limits = hingeL.limits;
-            limits.min = targetGripAngle-0.01f;
+            limits.min = targetGripAngle - 0.01f;
             limits.max = targetGripAngle;
             hingeL.limits = limits;
         }
@@ -215,7 +279,7 @@ public class ArmController : MonoBehaviour
         if (hingeR != null && hingeR.useLimits)
         {
             var limits = hingeR.limits;
-            limits.min = targetGripAngle-0.01f;
+            limits.min = targetGripAngle - 0.01f;
             limits.max = targetGripAngle;
             hingeR.limits = limits;
         }

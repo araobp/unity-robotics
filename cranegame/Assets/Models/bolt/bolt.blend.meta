@@ -1,63 +1,13 @@
 fileFormatVersion: 2
-guid: b5ea53b939feb4f5aa5fac7b156aab87
+guid: 22734c07678824a43a65be747c1aadf8
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Arrow
-    second: {fileID: 2100000, guid: e6b3901f4f4614f27a0852f19aca0b4c, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Button
-    second: {fileID: 2100000, guid: 4b2633e08aec64813a33446dded95741, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Finger
-    second: {fileID: 2100000, guid: 6e6b6073491a449f4a54a32eb69e7c9c, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Frame
-    second: {fileID: 2100000, guid: 3c59d0d60507e4c31bba07eedaa68d5e, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Glass
-    second: {fileID: 2100000, guid: 389afcffbd34f4e71b1006d427ebc9dd, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Hand
-    second: {fileID: 2100000, guid: 98c90fda5fe984c338af05b9bdf61da5, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Metal
-    second: {fileID: 2100000, guid: 01eec06b9b2ef4355b572b9a5b1a86d9, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Motor
-    second: {fileID: 2100000, guid: bb79217ae9ece4b88a662dc8410ee77a, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Number
-    second: {fileID: 2100000, guid: a4529091a6bae4d60a17de9a5529827f, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Pad
-    second: {fileID: 2100000, guid: f0d1657c2088d45419bb941aab78aa93, type: 2}
+  externalObjects: {}
   materials:
     materialImportMode: 2
     materialName: 0
-    materialSearch: 2
+    materialSearch: 1
     materialLocation: 1
   animations:
     legacyGenerateAnimations: 4
