@@ -1,20 +1,20 @@
-# AI Robot Simulation with Gemini Robotics
+# GeminiロボティクスでAIロボットシミュレーション (AI Robot Simulation with Gemini Robotics)
 
 (Work in progress)
 
 This project explores AI robot simulation using the Gemini API.
 
-## 1. Crane Game Robotics
+## 1. クレーンゲームロボティクス (Crane Game Robotics)
 
 => [README](/cranegame)
 
-## 2. Articulated Robot
+## 2. 多間接ロボット (Articulated Robot)
 
 => [README](/robotics)
 
 ## Gemini API
 
-### Gemini API in C# Script
+### Gemini API C# スクリプト (Gemini API in C# Script)
 
 This code was generated with gemini-2.5-flash referring to the Gemini API doc for REST:
 
