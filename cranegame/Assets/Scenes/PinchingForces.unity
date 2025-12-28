@@ -2258,7 +2258,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1257383667}
-  - component: {fileID: 1257383666}
   - component: {fileID: 1257383668}
   m_Layer: 0
   m_Name: ArmController
@@ -2267,22 +2266,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1257383666
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1257383665}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e794263ff4d8d4d21b508e5a4cc7b722, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EndEffectorController
-  hand: {fileID: 0}
-  speed: 0.2
-  fingerL: {fileID: 0}
-  fingerR: {fileID: 0}
 --- !u!4 &1257383667
 Transform:
   m_ObjectHideFlags: 0

@@ -1,88 +1,72 @@
 using UnityEngine;
 
 /// <summary>
-/// A MonoBehaviour that simulates a pressure sensor. It calculates the force and pressure
-/// exerted on the GameObject during a collision.
+/// Simulates a pressure sensor by calculating the force and pressure
+/// exerted on this GameObject during a collision.
 /// </summary>
 public class PressureSensor : MonoBehaviour
 {
+    private float _lastForce;
     /// <summary>
-    /// A threshold for pressure. If the calculated pressure exceeds this value,
-    /// it could trigger an event. Currently not used in this script.
+    /// Gets the last calculated force of the collision in Newtons.
     /// </summary>
-    public float pressureThreshold = 10f;
+    public float LastForce => _lastForce;
 
+    private float _lastPressure;
     /// <summary>
-    /// Backing field for the last calculated force in Newtons.
+    /// Gets the last calculated pressure of the collision.
     /// </summary>
-    private float _lastForce = 0f;
+    public float LastPressure => _lastPressure;
 
+    private float _lastMass;
     /// <summary>
-    /// Public property to get the last calculated force.
+    /// Gets the mass of the other rigidbody in the collision.
     /// </summary>
-    public float LastForce
-    {
-        get { return _lastForce; }
-    }
+    public float LastMass => _lastMass;
 
+    private float _lastFriction;
     /// <summary>
-    /// Backing field for the last calculated pressure.
+    /// Gets the average static friction of the two colliding objects.
     /// </summary>
-    private float _lastPressure = 0f;
+    public float LastFriction => _lastFriction;
 
+    private bool _isColliding;
     /// <summary>
-    /// Public property to get the last calculated pressure.
+    /// Gets a value indicating whether a collision is currently occurring.
     /// </summary>
-    public float LastPressure
-    {
-        get { return _lastPressure; }
-    }
-
-    private float _lastMass = 0f;
-    public float LastMass
-    {
-        get { return _lastMass; }
-    }
-
-    private float _lastFriction = 0f;
-    public float LastFriction
-    {
-        get { return _lastFriction; }
-    }
-
-    public bool _onCollisionEntered = false;
-    public bool OnCollisionEntered
-    {
-        get { return _onCollisionEntered; }
-    }
+    public bool IsColliding => _isColliding;
 
     /// <summary>
-    /// Called by Unity when a collision first occurs.
+    /// Unity message for when a collision first occurs.
     /// </summary>
     /// <param name="collision">Collision event data.</param>
-    void OnCollisionEnter(Collision collision)
+    private void OnCollisionEnter(Collision collision)
     {
-        CalculatePressure(collision);
+        _isColliding = true;
+        CalculateForceAndPressure(collision);
         _lastMass = collision.rigidbody.mass;
-        Collider col = GetComponent<Collider>();
-        _lastFriction = (collision.collider.material.staticFriction + col.material.staticFriction)/2.0f;
-        _onCollisionEntered = true;
+        var col = GetComponent<Collider>();
+        _lastFriction = (collision.collider.material.staticFriction + col.material.staticFriction) / 2.0f;
     }
 
     /// <summary>
-    /// Called by Unity on every frame that a collision continues.
+    /// Unity message for every frame that a collision continues.
+    /// This is used to continuously update pressure, for example, when one object is crushing another.
     /// </summary>
     /// <param name="collision">Collision event data.</param>
-    void OnCollisionStay(Collision collision)
+    private void OnCollisionStay(Collision collision)
     {
-        // Use Stay if you want to detect pressure while 
-        // one object is crushing another.
-        CalculatePressure(collision);
+        CalculateForceAndPressure(collision);
     }
 
-    void OnCollisionExit(Collision collision)
+    /// <summary>
+    /// Unity message for when a collision ends.
+    /// </summary>
+    /// <param name="collision">Collision event data.</param>
+    private void OnCollisionExit(Collision collision)
     {
-        _onCollisionEntered = false;
+        // Reset values when the collision ends.
+        _isColliding = false;
         _lastMass = 0f;
         _lastFriction = 0f;
         _lastForce = 0f;
@@ -90,28 +74,30 @@ public class PressureSensor : MonoBehaviour
     }
 
     /// <summary>
-    /// Calculates the force and pressure based on collision data.
+    /// Calculates the force and pressure from collision data.
     /// </summary>
     /// <param name="collision">The collision data.</param>
-    void CalculatePressure(Collision collision)
+    private void CalculateForceAndPressure(Collision collision)
     {
-        // 1. Get the total impulse (Force * Time) of the impact
-        float impulse = collision.impulse.magnitude;
+        // The total impulse of the collision, which is Force * Time.
+        var impulse = collision.impulse.magnitude;
 
-        // 2. Get the number of contact points (Approximating Area)
-        int contactCount = collision.contactCount;
+        // The number of contact points is used to approximate the contact area.
+        var contactCount = collision.contactCount;
 
         // Ensure there are contact points to avoid division by zero.
         if (contactCount > 0)
         {
-            // 3. Pressure = Force / Area
-            // We divide by Time.fixedDeltaTime to turn Impulse into an approximation of force in Newtons.
+            // Force is approximated by dividing impulse by the fixed time step.
+            // This gives us a value in Newtons.
             _lastForce = impulse / Time.fixedDeltaTime;
-            // We approximate the area of contact by the number of contact points.
+
+            // Pressure is Force / Area. We approximate Area with the number of contact points.
+            // This is a simplification and may not be physically accurate.
             _lastPressure = _lastForce / contactCount;
 
-            Debug.Log($"Force detected: {_lastForce} on {gameObject.name}");
-            Debug.Log($"Pressure detected: {_lastPressure} on {gameObject.name}");
+            Debug.Log($"Force: {_lastForce:F2} N on {gameObject.name}");
+            Debug.Log($"Pressure: {_lastPressure:F2} Pa on {gameObject.name}");
         }
     }
 }
