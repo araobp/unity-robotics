@@ -1,5 +1,7 @@
 # AI Robot Simulation with Gemini Robotics
 
+This project explores AI robot simulation using the Gemini API.
+
 ## 1. Crane Game Robot
 
 => [README](/cranegame)
@@ -9,44 +11,9 @@
 => [README](/robotics)
 
 
+## Gemini API in C# Script
 
-
-
-This project explores AI robot simulation using the Gemini API.
-
-## Robot 3D Model in Blender
-
-<img src="docs/robot.png" width=200>
-
-The original Blender file is available in this repository: [blender-3d/robots](https://github.com/araobp/blender-3d/tree/main/robots).
-
-[Watch the YouTube video (rendered with Blender's Cycles rendering engine)](https://youtu.be/C_qCqOBFJzs)
-
-## Unity Simulation
-
-Currently, the Unity simulation implementation is in its early stages.
-
-[Access the Unity project code here](./robotics)
-
-### Inverse Kinematics (IK) with Cosine Theorem for the Robot Arm
-
-[Explore the Cosine theorem for Inverse Kinematics implementation](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
-
-### Positioning the robot hand to the work on the table
-
-<img src="docs/P1.jpg" width=600>
-
-<img src="docs/P2.jpg" width=600>
-
-<img src="docs/P3.jpg" width=600>
-
-<img src="docs/P4.jpg" width=600>
-
-<img src="docs/P5.jpg" width=600>
-
-<img src="docs/P6.jpg" width=600>
-
-### Gemini API
+This code was generated with gemini-2.5-flash referring to the Gemini API doc for REST:
 
 [`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs)
 
