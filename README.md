@@ -16,7 +16,7 @@ This project explores AI robot simulation using the Gemini API.
 
 This code was generated with gemini-2.5-flash referring to the Gemini API doc for REST:
 
-[`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs)
+[`Gemini.cs`](/robotics/Assets/Scripts/lib/Gemini.cs)
 
 **Gemini API Features Explored:**
 - [Speech Generation](https://ai.google.dev/gemini-api/docs/speech-generation)
