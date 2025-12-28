@@ -1,5 +1,5 @@
 # GeminiロボティクスでAIロボットシミュレーション
-AI Robot Simulation with Gemini Robotics
+**AI Robot Simulation with Gemini Robotics**
 
 (Work in progress)
 
