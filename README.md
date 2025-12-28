@@ -1,65 +1,47 @@
-# AI Robot Simulation with Gemini Robotics
+# GeminiロボティクスでAIロボットシミュレーション
+**AI Robot Simulation with Gemini Robotics**
+
+(Work in progress)
 
 This project explores AI robot simulation using the Gemini API.
 
-## Robot 3D Model in Blender
+## 1. クレーンゲームロボティクス (Crane Game Robotics)
 
-<img src="docs/robot.png" width=200>
+=> [README](/cranegame)
 
-The original Blender file is available in this repository: [blender-3d/robots](https://github.com/araobp/blender-3d/tree/main/robots).
+## 2. 多間接ロボット (Articulated Robot)
 
-[Watch the YouTube video (rendered with Blender's Cycles rendering engine)](https://youtu.be/C_qCqOBFJzs)
+=> [README](/robotics)
 
-## Unity Simulation
+## Gemini API
 
-Currently, the Unity simulation implementation is in its early stages.
+### Gemini API C# スクリプト (Gemini API in C# Script)
 
-[Access the Unity project code here](./robotics)
+This code was generated with gemini-2.5-flash referring to the Gemini API doc for REST:
 
-### Inverse Kinematics (IK) with Cosine Theorem for the Robot Arm
+[`Gemini.cs`](/robotics/Assets/Scripts/lib/Gemini.cs)
 
-[Explore the Cosine theorem for Inverse Kinematics implementation](https://github.com/araobp/unity-excavator/blob/master/Excavator/jupyter/IK.ipynb)
-
-### Positioning the robot hand to the work on the table
-
-<img src="docs/P1.jpg" width=600>
-
-<img src="docs/P2.jpg" width=600>
-
-<img src="docs/P3.jpg" width=600>
-
-<img src="docs/P4.jpg" width=600>
-
-<img src="docs/P5.jpg" width=600>
-
-<img src="docs/P6.jpg" width=600>
-
-### Gemini API
-
-[`Gemini.cs`](/robotics/Assets/Scripts/Gemini.cs)
-
-**Gemini API Features Explored:**
-- [Speech Generation](https://ai.google.dev/gemini-api/docs/speech-generation)
-
-## Robot Scene in Unity
-
-Work on the robot scene in Unity has recently begun.
-
-https://github.com/user-attachments/assets/5b8cf89e-a132-40f8-8c07-1bc9a24380b4
-
-## Robot Scene in Godot (Discontinued)
-
-Initially, Godot was considered for this project. However, due to its limitations in 3D capabilities, development was shifted to Unity. While Godot is a preferred engine for many use cases, it was not suitable for the 3D requirements of this simulation.
-
-https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
-
-## Infographics on Gemini Robotics
+### Infographics on Gemini Robotics
 
 Generated with NotebookLM on [Gemini Robotics 1.5: Pushing the Frontier of
 Generalist Robots with Advanced Embodied
 Reasoning, Thinking, and Motion Transfer](https://arxiv.org/pdf/2510.03342)
 
 <img src="docs/infographics.jpg" width=800>
+
+## Misc
+
+### Robot Scene in Unity
+
+Work on the robot scene in Unity has recently begun.
+
+https://github.com/user-attachments/assets/5b8cf89e-a132-40f8-8c07-1bc9a24380b4
+
+### Robot Scene in Godot (Discontinued)
+
+Initially, Godot was considered for this project. However, due to its limitations in 3D capabilities, development was shifted to Unity. While Godot is a preferred engine for many use cases, it was not suitable for the 3D requirements of this simulation.
+
+https://github.com/user-attachments/assets/52b701a5-fe86-44a4-b6d0-b4fb5e340124
 
 ## References
 
