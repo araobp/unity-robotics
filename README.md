@@ -1,5 +1,7 @@
 # AI Robot Simulation with Gemini Robotics
 
+(Work in progress)
+
 This project explores AI robot simulation using the Gemini API.
 
 ## 1. Crane Game Robot
@@ -9,7 +11,6 @@ This project explores AI robot simulation using the Gemini API.
 ## 2. Articulated Robot
 
 => [README](/robotics)
-
 
 ## Gemini API in C# Script
 
