@@ -4,7 +4,7 @@
 
 This project explores AI robot simulation using the Gemini API.
 
-## 1. Crane Game Robot
+## 1. Crane Game Robotics
 
 => [README](/cranegame)
 
