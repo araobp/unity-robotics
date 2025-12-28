@@ -1,5 +1,10 @@
 # クレーンゲームロボティクス (Crane Game Robotics)
 
+## Scenes
+
+- Main : HingeJointを使った実装
+- MainArticulated : ArticulationBodyを使った実装＝＞こちらをお勧め
+
 ## Qiita (Japanese Tech Blog Site)
 
 Please use your browser's translation feature to translate these Japanese blog articles into your native language.
