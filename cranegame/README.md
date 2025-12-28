@@ -1,4 +1,4 @@
-# Crane Game Robotics (クレーンゲームロボティクス）
+# クレーンゲームロボティクス (Crane Game Robotics)
 
 ## Qiita (Japanese Tech Blog Site)
 
