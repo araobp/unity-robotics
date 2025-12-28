@@ -1,5 +1,17 @@
 # AI Robot Simulation with Gemini Robotics
 
+## 1. Crane Game Robot
+
+=> [README](/cranegame)
+
+## 2. Articulated Robot
+
+=> [README](/robotics)
+
+
+
+
+
 This project explores AI robot simulation using the Gemini API.
 
 ## Robot 3D Model in Blender
