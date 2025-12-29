@@ -5,27 +5,38 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Controls a robotic arm's movement and grip based on keyboard input.
-/// This script manipulates various joints to control different parts of the arm.
+/// This script manipulates various ArticulationBody components to control the arm.
 /// </summary>
 public class ArmControllerArticulated : MonoBehaviour
 {
-    // The GameObject representing the slider mechanism.
+    /// <summary>
+    /// The GameObject for the slider mechanism.
+    /// </summary>
     [SerializeField] GameObject slider;
 
-    // The GameObject representing the main arm.
+    /// <summary>
+    /// The GameObject for the main arm.
+    /// </summary>
     [SerializeField] GameObject arm;
 
-    // The GameObject representing the hand part of the arm.
+    /// <summary>
+    /// The GameObject for the hand.
+    /// </summary>
     [SerializeField] GameObject hand;
 
-    // GameObjects for the left and right fingers.
+    /// <summary>
+    /// The GameObject for the left finger.
+    /// </summary>
     [SerializeField] GameObject fingerL;
+    /// <summary>
+    /// The GameObject for the right finger.
+    /// </summary>
     [SerializeField] GameObject fingerR;
 
     /// <summary>
     /// The speed at which the arm components move.
     /// </summary>
-    [SerializeField] float speed = 0.1f; // Speed of movement
+    [SerializeField] float speed = 0.1f;
 
     /// <summary>
     /// The speed at which the fingers open and close.
@@ -38,7 +49,7 @@ public class ArmControllerArticulated : MonoBehaviour
     [SerializeField] float targetForce = 1.0f;
 
     /// <summary>
-    /// The small gap between the min and max limits of the hinge joint for the fingers.
+    /// The small gap between the min and max limits of the articulation body for the fingers.
     /// </summary>
     [SerializeField]
     private float minMaxGap = 0.01f;
@@ -54,16 +65,18 @@ public class ArmControllerArticulated : MonoBehaviour
     [SerializeField]
     private float forceReductionDenominator = 500.0f;
 
-    // Hinge joints for controlling the fingers.
+    // Articulation bodies for controlling the fingers.
     private ArticulationBody _fingerL;
     private ArticulationBody _fingerR;
     // The target angle for the finger grip.
     private float _targetGripAngle = 0.0f;
 
+    // The angle of the fingers when they are fully closed.
     private float _fingerClosedAngle;
+    // The angle of the fingers when they are fully open.
     private float _fingerOpenAngle;
 
-    // Configurable joints for controlling the arm, hand, and slider.
+    // Articulation bodies for controlling the arm, hand, and slider.
     private ArticulationBody _armJoint;
     private ArticulationBody _handJoint;
     private ArticulationBody _sliderJoint;
@@ -76,13 +89,21 @@ public class ArmControllerArticulated : MonoBehaviour
     private float _lastGripAngle = 0.0f;
 
 
-    // UI Text element to display arm's status information.
+    /// <summary>
+    /// UI Text element to display arm's status information.
+    /// </summary>
     [SerializeField] TMP_Text textInfo;
+    /// <summary>
+    /// UI Text element to display the target force.
+    /// </summary>
     [SerializeField] TMP_Text textTargetForce;
+    /// <summary>
+    /// UI Slider to control the target force.
+    /// </summary>
     [SerializeField] Slider sliderTargetForce;
 
     /// <summary>
-    /// Called once before the first frame update. Initializes components and settings.
+    /// Initializes components and settings.
     /// </summary>
     void Start()
     {
@@ -108,23 +129,20 @@ public class ArmControllerArticulated : MonoBehaviour
 
 
     /// <summary>
-    /// Sets up the finger components, including the hinge joint and pressure sensor.
+    /// Sets up the finger components, including the articulation body and pressure sensor.
     /// </summary>
-    private void SetupFinger(GameObject finger, out ArticulationBody hinge, out PressureSensor sensor)
+    private void SetupFinger(GameObject finger, out ArticulationBody body, out PressureSensor sensor)
     {
-        hinge = null;
+        body = null;
         sensor = null;
         if (finger == null) return;
 
-        hinge = finger.GetComponent<ArticulationBody>();
+        body = finger.GetComponent<ArticulationBody>();
         sensor = finger.GetComponent<PressureSensor>();
     }
 
     /// <summary>
-    /// Updates the UI text with the current status of the arm's joints and sensors.
-    /// </summary>
-    /// <remarks>
-    /// This method is called every frame to display real-time information about the arm's state, including forces from the pressure sensors and calculated friction data.
+    /// Updates the UI text with the current status of the arm's joints and sensors each frame.
     /// </summary>
     void Update()
     {
@@ -178,10 +196,9 @@ public class ArmControllerArticulated : MonoBehaviour
     }
 
     /// <summary>
-    /// Called at a fixed time interval, used for physics-related updates.
-    /// </summary>
-    /// <remarks>
-    /// This handles all the physics-based movements of the arm, including joint movements and grip adjustments based on keyboard input and sensor feedback.
+    /// Called at a fixed time interval for physics-related updates.
+    /// This handles all the physics-based movements of the arm, including joint movements
+    /// and grip adjustments based on keyboard input and sensor feedback.
     /// </summary>
     void FixedUpdate()
     {

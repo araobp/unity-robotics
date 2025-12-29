@@ -198,7 +198,8 @@ public class ArmController : MonoBehaviour
                         $"- Force Avg: {force:F1}(N)\n\n" +
                         $"Friction Info:\n" +
                         $"Mass(kg): {mass:F1}(kg)\n" +
-                        $"Friction Coef(μ): {friction:F2}\n" +
+                        $"Unity Physics μ: {friction:F2}\n" +
+                        $"Real Physics μ: {friction * 2.0f:F2}\n" +
                         $"Friction(2μF): <color=#{colorCode}>{frictionForce:F1}</color>(N)\n" +
                         $"Gravity(mg): {gravityForce:F1}(N)";
 
