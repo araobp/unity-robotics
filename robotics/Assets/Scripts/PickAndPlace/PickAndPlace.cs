@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Implements inverse kinematics (IK) for a robot arm to pick and place objects.
-/// It calculates the required joint angles to reach a target and animates the movement.
+/// It calculates the required articulation angles to reach a target and animates the movement.
 /// </summary>
 public class PickAndPlace : MonoBehaviour
 {
@@ -27,8 +27,8 @@ public class PickAndPlace : MonoBehaviour
     [Header("Robot Base")]
     [SerializeField] GameObject robotBase;
 
-    // GameObjects representing the robot's joints.
-    [Header("Robot Joints")]
+    // GameObjects representing the robot's articulations.
+    [Header("Robot Articulations")]
     [SerializeField] GameObject swingAxis;
     [SerializeField] GameObject boomAxis;
     [SerializeField] GameObject armAxis;
@@ -56,12 +56,10 @@ public class PickAndPlace : MonoBehaviour
     // Used to cancel the in-progress asynchronous movement task.
     private CancellationTokenSource _ikMoveCts;
 
-    // Stores the initial rotation of each joint, allowing for relative
-    // calculations. These are initialized in the Start() method.
-    Quaternion initialSwingRotation;
-    Quaternion initialBoomRotation;
-    Quaternion initialArmRotation;
-    Quaternion initialHandRotation;
+    private ArticulationBody swingAb;
+    private ArticulationBody boomAb;
+    private ArticulationBody armAb;
+    private ArticulationBody handAb;
 
     // Robot arm segment lengths (in meters).
     const float AB = 0.169f;
@@ -72,16 +70,15 @@ public class PickAndPlace : MonoBehaviour
     const float ED = 0.70142f;
 
     /// <summary>
-    /// Initializes the robot arm's joint rotations, sets the initial pose,
+    /// Initializes the robot arm's articulation components, sets the initial pose,
     /// and subscribes to UI button events.
     /// </summary>
     void Start()
     {
-        // Store the initial local rotations to use as a reference for relative movements.
-        initialSwingRotation = swingAxis.transform.localRotation;
-        initialBoomRotation = boomAxis.transform.localRotation;
-        initialArmRotation = armAxis.transform.localRotation;
-        initialHandRotation = handAxis.transform.localRotation;
+        swingAb = swingAxis.GetComponent<ArticulationBody>();
+        boomAb = boomAxis.GetComponent<ArticulationBody>();
+        armAb = armAxis.GetComponent<ArticulationBody>();
+        handAb = handAxis.GetComponent<ArticulationBody>();
 
         // Set the initial pose of the robot arm.
         setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
@@ -152,7 +149,7 @@ public class PickAndPlace : MonoBehaviour
     }
 
     /// <summary>
-    /// Performs inverse kinematics to calculate the joint angles required to reach the target.
+    /// Performs inverse kinematics to calculate the articulation angles required to reach the target.
     /// It solves a 2D planar IK problem based on the geometric relationships of the robot arm's segments
     /// and then initiates the robot arm's movement.
     /// </summary>
@@ -195,11 +192,6 @@ public class PickAndPlace : MonoBehaviour
         float theat8 = 3 * Mathf.PI / 2 - theat4 - theat7;
         Debug.Log("Theta8: " + (theat8 * Mathf.Rad2Deg).ToString("F4"));
 
-        // Log the initial rotation values for debugging.
-        Debug.Log($"{initialSwingRotation.y}, {initialSwingRotation.z}");
-        Debug.Log($"{initialBoomRotation.y}, {initialBoomRotation.z}");
-        Debug.Log($"{initialArmRotation.y}, {initialArmRotation.z}");
-
         // Cancel any existing movement task before starting a new one.
         if (_ikMoveCts != null)
         {
@@ -209,58 +201,54 @@ public class PickAndPlace : MonoBehaviour
 
         // Start the asynchronous movement task, allowing for cancellation.
         _ikMoveCts = new CancellationTokenSource();
-        var newTargets = CalculateTargetPose(theta2, theat4, theat7, theat8);
-        await MoveToTargets(newTargets.swing, newTargets.boom, newTargets.arm, newTargets.hand, ikMoveDuration, _ikMoveCts.Token);
+
+        float swingTarget = -theta2 * Mathf.Rad2Deg;
+        float boomTarget = -theat4 * Mathf.Rad2Deg;
+        float armTarget = theat7 * Mathf.Rad2Deg;
+        float handTarget = theat8 * Mathf.Rad2Deg;
+
+        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, ikMoveDuration, _ikMoveCts.Token);
     }
 
     /// <summary>
-    /// Directly sets the pose of the robot arm's joints to the specified angles without animation.
+    /// Directly sets the pose of the robot arm's articulations to the specified angles without animation.
     /// </summary>
-    /// <param name="swingAngle">The angle for the swing joint in radians.</param>
-    /// <param name="boomAngle">The angle for the boom joint in radians.</param>
-    /// <param name="armAngle">The angle for the arm joint in radians.</param>
-    /// <param name="handAngle">The angle for the hand joint in radians.</param>
+    /// <param name="swingAngle">The angle for the swing articulation in radians.</param>
+    /// <param name="boomAngle">The angle for the boom articulation in radians.</param>
+    /// <param name="armAngle">The angle for the arm articulation in radians.</param>
+    /// <param name="handAngle">The angle for the hand articulation in radians.</param>
     void setPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
     {
-        // Apply rotations relative to the initial state.
-        swingAxis.transform.localRotation = initialSwingRotation * UnityEngine.Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
-        boomAxis.transform.localRotation = initialBoomRotation * UnityEngine.Quaternion.AngleAxis(boomAngle * Mathf.Rad2Deg, -Vector3.up);
-        armAxis.transform.localRotation = initialArmRotation * UnityEngine.Quaternion.AngleAxis(armAngle * Mathf.Rad2Deg, Vector3.up);
-        handAxis.transform.localRotation = initialHandRotation * UnityEngine.Quaternion.AngleAxis(handAngle * Mathf.Rad2Deg, Vector3.up);
-
-        var newTargets = CalculateTargetPose(swingAngle, boomAngle, armAngle, handAngle);
+        SetArticulationTarget(swingAb, -swingAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(boomAb, -boomAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(armAb, armAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(handAb, handAngle * Mathf.Rad2Deg);
     }
 
-    /// <summary>
-    /// Calculates the target world-space rotations for each joint based on the IK solver's angle results.
-    /// </summary>
-    /// <returns>A tuple containing the target quaternions for each joint.</returns>
-    (UnityEngine.Quaternion swing, UnityEngine.Quaternion boom, UnityEngine.Quaternion arm, UnityEngine.Quaternion hand) CalculateTargetPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
+    void SetArticulationTarget(ArticulationBody articulation, float target)
     {
-        // Calculate the target rotation for each joint relative to its initial orientation.
-        var swing = initialSwingRotation * Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
-        var boom = initialBoomRotation * Quaternion.AngleAxis(boomAngle * Mathf.Rad2Deg, -Vector3.up);
-        var arm = initialArmRotation * Quaternion.AngleAxis(armAngle * Mathf.Rad2Deg, Vector3.up);
-        var hand = initialHandRotation * Quaternion.AngleAxis(handAngle * Mathf.Rad2Deg, Vector3.up);
-        return (swing, boom, arm, hand);
+        var drive = articulation.xDrive;
+        drive.target = target;
+        articulation.xDrive = drive;
     }
 
     /// <summary>
-    /// Asynchronously moves the robot's joints smoothly from their current rotation to the target rotations over a specified duration.
+    /// Asynchronously moves the robot's articulations smoothly from their current angle to the target angles over a specified duration.
     /// </summary>
-    /// <param name="swingTarget">The target rotation for the swing joint.</param>
-    /// <param name="boomTarget">The target rotation for the boom joint.</param>
-    /// <param name="armTarget">The target rotation for the arm joint.</param>
-    /// <param name="handTarget">The target rotation for the hand joint.</param>
+    /// <param name="swingTarget">The target angle for the swing articulation in degrees.</param>
+    /// <param name="boomTarget">The target angle for the boom articulation in degrees.</param>
+    /// <param name="armTarget">The target angle for the arm articulation in degrees.</param>
+    /// <param name="handTarget">The target angle for the hand articulation in degrees.</param>
     /// <param name="duration">The time in seconds the movement should take.</param>
     /// <param name="cancellationToken">A token to allow for cancellation of the movement task.</param>
-    private async Task MoveToTargets(UnityEngine.Quaternion swingTarget, UnityEngine.Quaternion boomTarget, UnityEngine.Quaternion armTarget, UnityEngine.Quaternion handTarget, float duration, CancellationToken cancellationToken)
+    private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float duration, CancellationToken cancellationToken)
     {
-        // Capture the starting rotation of each joint.
-        Quaternion startSwing = swingAxis.transform.localRotation;
-        Quaternion startBoom = boomAxis.transform.localRotation;
-        Quaternion startArm = armAxis.transform.localRotation;
-        Quaternion startHand = handAxis.transform.localRotation;
+        // Capture the starting angle of each articulation.
+        float startSwing = swingAb.xDrive.target;
+        float startBoom = boomAb.xDrive.target;
+        float startArm = armAb.xDrive.target;
+        float startHand = handAb.xDrive.target;
+
         float elapsedTime = 0f;
 
         try
@@ -270,23 +258,23 @@ public class PickAndPlace : MonoBehaviour
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Smoothly interpolate joint rotations.
+                // Smoothly interpolate articulation angles.
                 float t = elapsedTime / duration;
-                swingAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startSwing, swingTarget, t);
-                boomAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startBoom, boomTarget, t);
-                armAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startArm, armTarget, t);
-                handAxis.transform.localRotation = UnityEngine.Quaternion.Slerp(startHand, handTarget, t);
+                SetArticulationTarget(swingAb, Mathf.Lerp(startSwing, swingTarget, t));
+                SetArticulationTarget(boomAb, Mathf.Lerp(startBoom, boomTarget, t));
+                SetArticulationTarget(armAb, Mathf.Lerp(startArm, armTarget, t));
+                SetArticulationTarget(handAb, Mathf.Lerp(startHand, handTarget, t));
 
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
                 await Task.Yield();
             }
 
-            // Snap to the final target rotations to ensure precision.
-            swingAxis.transform.localRotation = swingTarget;
-            boomAxis.transform.localRotation = boomTarget;
-            armAxis.transform.localRotation = armTarget;
-            handAxis.transform.localRotation = handTarget;
+            // Snap to the final target angles to ensure precision.
+            SetArticulationTarget(swingAb, swingTarget);
+            SetArticulationTarget(boomAb, boomTarget);
+            SetArticulationTarget(armAb, armTarget);
+            SetArticulationTarget(handAb, handTarget);
         }
         catch (TaskCanceledException)
         {

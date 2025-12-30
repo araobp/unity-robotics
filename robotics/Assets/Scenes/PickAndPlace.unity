@@ -3663,7 +3663,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1700335740
 Transform:
   m_ObjectHideFlags: 0
@@ -3691,7 +3691,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c79bbcb508214426b893ad0fbd3b802f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GeminiRobotTest
-  ikTestMode: 0
+  ikTestMode: 1
   work: {fileID: 131571065}
   ikMoveDuration: 1
   robotBase: {fileID: 1403536110}
