@@ -29,13 +29,13 @@ public class PickAndPlace : MonoBehaviour
 
     // GameObjects representing the robot's articulations.
     [Header("Robot Articulations")]
-    [SerializeField] GameObject swingAxis;
-    [SerializeField] GameObject boomAxis;
-    [SerializeField] GameObject armAxis;
-    [SerializeField] GameObject handAxis;
+    [SerializeField] GameObject swing;
+    [SerializeField] GameObject boom;
+    [SerializeField] GameObject arm;
+    [SerializeField] GameObject hand;
 
     [Header("End Effector")]
-    [SerializeField] GameObject finger;
+    [SerializeField] GameObject endEffector;
 
     [Header("Coordinate Display")]
     [SerializeField] Coordinate coordinateFinger;
@@ -60,6 +60,8 @@ public class PickAndPlace : MonoBehaviour
     private ArticulationBody boomAb;
     private ArticulationBody armAb;
     private ArticulationBody handAb;
+    private ArticulationBody fingerLAb;
+    private ArticulationBody fingerRAb;
 
     // Robot arm segment lengths (in meters).
     const float AB = 0.169f;
@@ -75,10 +77,20 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     void Start()
     {
-        swingAb = swingAxis.GetComponent<ArticulationBody>();
-        boomAb = boomAxis.GetComponent<ArticulationBody>();
-        armAb = armAxis.GetComponent<ArticulationBody>();
-        handAb = handAxis.GetComponent<ArticulationBody>();
+        swingAb = swing.GetComponent<ArticulationBody>();
+        boomAb = boom.GetComponent<ArticulationBody>();
+        armAb = arm.GetComponent<ArticulationBody>();
+        handAb = hand.GetComponent<ArticulationBody>();
+
+        // Initialize finger articulations and set initial target
+        var fingerL = endEffector.transform.Find("FingerL");
+        if (fingerL) fingerLAb = fingerL.GetComponent<ArticulationBody>();
+
+        var fingerR = endEffector.transform.Find("FingerR");
+        if (fingerR) fingerRAb = fingerR.GetComponent<ArticulationBody>();
+
+        if (fingerLAb) SetArticulationTarget(fingerLAb, fingerLAb.xDrive.lowerLimit);
+        if (fingerRAb) SetArticulationTarget(fingerRAb, fingerRAb.xDrive.lowerLimit);
 
         // Set the initial pose of the robot arm.
         setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
@@ -101,7 +113,7 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     void Update()
     {
-        Vector3 fingerPos = robotBase.transform.InverseTransformPoint(finger.transform.position);
+        Vector3 fingerPos = robotBase.transform.InverseTransformPoint(endEffector.transform.position);
         coordinateFinger.UpdatePositionText(fingerPos);
     }
 
