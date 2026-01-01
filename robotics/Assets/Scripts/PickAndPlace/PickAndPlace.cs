@@ -36,6 +36,13 @@ public class PickAndPlace : MonoBehaviour
 
     [Header("End Effector")]
     [SerializeField] GameObject endEffector;
+    [SerializeField] bool isAlignedToTable = true;
+    float gripperClosedAngle = 0.0f;
+    [SerializeField] float forceReductionDenominator = 500.0f;
+    [SerializeField] float targetForce = 3.0f;
+    [SerializeField] float targetAngularVelocity = 30.0f;
+    [SerializeField] float slowDownDenominator = 200.0f;
+    [SerializeField] float minMaxGap = 0.01f;
 
     [Header("Coordinate Display")]
     [SerializeField] Coordinate coordinateFinger;
@@ -60,13 +67,21 @@ public class PickAndPlace : MonoBehaviour
     private ArticulationBody boomAb;
     private ArticulationBody armAb;
     private ArticulationBody handAb;
+    private ArticulationBody endEffectorAb;
     private ArticulationBody fingerLAb;
     private ArticulationBody fingerRAb;
+    private PressureSensor pressureSensorL;
+    private PressureSensor pressureSensorR;
+    private bool isGripping = false;
+    private float gripTargetForce;
+    private float gripAngularVelocity;
+    private float gripDirection;
+    private float currentGripAngle;
 
     // Robot arm segment lengths (in meters).
     const float AB = 0.169f;
     const float CD = 0.273f;
-    const float HANDSIZE = 0.325f;
+    const float HANDSIZE = 0.385f;
     const float GF = HANDSIZE - CD;
     const float FE = 0.49727f;
     const float ED = 0.70142f;
@@ -75,30 +90,42 @@ public class PickAndPlace : MonoBehaviour
     /// Initializes the robot arm's articulation components, sets the initial pose,
     /// and subscribes to UI button events.
     /// </summary>
-    void Start()
+    async Task Start()
     {
         swingAb = swing.GetComponent<ArticulationBody>();
         boomAb = boom.GetComponent<ArticulationBody>();
         armAb = arm.GetComponent<ArticulationBody>();
         handAb = hand.GetComponent<ArticulationBody>();
+        endEffectorAb = endEffector.GetComponent<ArticulationBody>();
 
-        // Initialize finger articulations and set initial target
+        // Initialize finger articulations and set initial target to the lower limit
         var fingerL = endEffector.transform.Find("FingerL");
-        if (fingerL) fingerLAb = fingerL.GetComponent<ArticulationBody>();
+        if (fingerL)
+        {
+            fingerLAb = fingerL.GetComponent<ArticulationBody>();
+            pressureSensorL = fingerL.GetComponent<PressureSensor>();
+        }
 
         var fingerR = endEffector.transform.Find("FingerR");
-        if (fingerR) fingerRAb = fingerR.GetComponent<ArticulationBody>();
+        if (fingerR)
+        {
+            fingerRAb = fingerR.GetComponent<ArticulationBody>();
+            pressureSensorR = fingerR.GetComponent<PressureSensor>();
+        }
+
+        if (fingerLAb) gripperClosedAngle = fingerLAb.xDrive.upperLimit;
+        else if (fingerRAb) gripperClosedAngle = fingerRAb.xDrive.upperLimit;
 
         if (fingerLAb) SetArticulationTarget(fingerLAb, fingerLAb.xDrive.lowerLimit);
         if (fingerRAb) SetArticulationTarget(fingerRAb, fingerRAb.xDrive.lowerLimit);
 
         // Set the initial pose of the robot arm.
-        setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
+        await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
 
         // If in test mode, trigger the IK test sequence after a short delay.
         if (ikTestMode)
         {
-            Invoke(nameof(PerformIK), 2f);
+            _ = TestIKSequence();
         }
 
         // Instantiate the GeminiRoboticsApi
@@ -108,6 +135,13 @@ public class PickAndPlace : MonoBehaviour
         buttonDetect.onClick.AddListener(OnDetectButtonClicked);
     }
 
+    private async Task TestIKSequence()
+    {
+        await Task.Delay(2000);
+        await PerformIK();
+        Grip(targetForce, targetAngularVelocity);
+    }
+
     /// <summary>
     /// Called every frame. Updates the displayed coordinates of the end effector.
     /// </summary>
@@ -115,6 +149,41 @@ public class PickAndPlace : MonoBehaviour
     {
         Vector3 fingerPos = robotBase.transform.InverseTransformPoint(endEffector.transform.position);
         coordinateFinger.UpdatePositionText(fingerPos);
+    }
+
+    /// <summary>
+    /// Called at a fixed time interval, used for physics-related updates.
+    /// Handles the continuous gripping logic and force feedback.
+    /// </summary>
+    void FixedUpdate()
+    {
+        if (isGripping)
+        {
+            if (fingerLAb == null || fingerRAb == null) return;
+
+            float dt = Time.fixedDeltaTime;
+            float currentAngle = currentGripAngle;
+            float targetAngle = gripperClosedAngle;
+
+            bool isColliding = (pressureSensorL != null && pressureSensorL.IsColliding) &&
+                               (pressureSensorR != null && pressureSensorR.IsColliding);
+            float currentSpeed = isColliding ? gripAngularVelocity / slowDownDenominator : gripAngularVelocity;
+
+            float nextAngle = Mathf.MoveTowards(currentAngle, targetAngle, currentSpeed * dt);
+
+            float forceL = pressureSensorL != null ? pressureSensorL.LastForce : 0f;
+            float forceR = pressureSensorR != null ? pressureSensorR.LastForce : 0f;
+
+            if (forceL > gripTargetForce && forceR > gripTargetForce)
+            {
+                float adjustment = (forceL + forceR - 2 * gripTargetForce) / forceReductionDenominator;
+                nextAngle -= gripDirection * adjustment;
+            }
+
+            currentGripAngle = nextAngle;
+            SetArticulationLimits(fingerLAb, nextAngle - minMaxGap, nextAngle);
+            SetArticulationLimits(fingerRAb, nextAngle - minMaxGap, nextAngle);
+        }
     }
 
     /// <summary>
@@ -165,7 +234,7 @@ public class PickAndPlace : MonoBehaviour
     /// It solves a 2D planar IK problem based on the geometric relationships of the robot arm's segments
     /// and then initiates the robot arm's movement.
     /// </summary>
-    public async void PerformIK()
+    public async Task PerformIK()
     {
         // Calculate the target position relative to the robot base.
         Vector3 A = work.transform.localPosition;
@@ -218,8 +287,27 @@ public class PickAndPlace : MonoBehaviour
         float boomTarget = -theat4 * Mathf.Rad2Deg;
         float armTarget = theat7 * Mathf.Rad2Deg;
         float handTarget = theat8 * Mathf.Rad2Deg;
+        float endEffectorTarget = isAlignedToTable ? swingTarget + 90f : swingTarget; // To keep the end effector aligned to the table
 
-        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, ikMoveDuration, _ikMoveCts.Token);
+        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, endEffectorTarget, ikMoveDuration, _ikMoveCts.Token);
+    }
+
+    /// <summary>
+    /// Closes the gripper fingers to the defined closed angle.
+    /// </summary>
+    public void Grip(float targetForce, float angularVelocity)
+    {
+        if (fingerLAb == null || fingerRAb == null) return;
+
+        gripTargetForce = targetForce;
+        gripAngularVelocity = angularVelocity;
+        
+        currentGripAngle = fingerLAb.xDrive.target;
+        // Determine the direction of closing (1 for increasing angle, -1 for decreasing)
+        gripDirection = Mathf.Sign(gripperClosedAngle - currentGripAngle);
+        if (gripDirection == 0) gripDirection = 1;
+
+        isGripping = true;
     }
 
     /// <summary>
@@ -229,18 +317,39 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="boomAngle">The angle for the boom articulation in radians.</param>
     /// <param name="armAngle">The angle for the arm articulation in radians.</param>
     /// <param name="handAngle">The angle for the hand articulation in radians.</param>
-    void setPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
+    async Task setPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
     {
         SetArticulationTarget(swingAb, -swingAngle * Mathf.Rad2Deg);
         SetArticulationTarget(boomAb, -boomAngle * Mathf.Rad2Deg);
         SetArticulationTarget(armAb, armAngle * Mathf.Rad2Deg);
         SetArticulationTarget(handAb, handAngle * Mathf.Rad2Deg);
+        await Task.Delay(100);
+        await endEffector.GetComponent<ParallelGripper>().open(100f);
     }
 
+    /// <summary>
+    /// Sets the target position for the given articulation body's drive.
+    /// </summary>
+    /// <param name="articulation">The articulation body to update.</param>
+    /// <param name="target">The target position in degrees.</param>
     void SetArticulationTarget(ArticulationBody articulation, float target)
     {
         var drive = articulation.xDrive;
         drive.target = target;
+        articulation.xDrive = drive;
+    }
+
+    /// <summary>
+    /// Sets the lower and upper limits for the given articulation body's drive.
+    /// </summary>
+    /// <param name="articulation">The articulation body to update.</param>
+    /// <param name="lower">The lower limit in degrees.</param>
+    /// <param name="upper">The upper limit in degrees.</param>
+    void SetArticulationLimits(ArticulationBody articulation, float lower, float upper)
+    {
+        var drive = articulation.xDrive;
+        drive.lowerLimit = lower;
+        drive.upperLimit = upper;
         articulation.xDrive = drive;
     }
 
@@ -251,9 +360,10 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="boomTarget">The target angle for the boom articulation in degrees.</param>
     /// <param name="armTarget">The target angle for the arm articulation in degrees.</param>
     /// <param name="handTarget">The target angle for the hand articulation in degrees.</param>
+    /// <param name="endEffectorTarget">The target angle for the end effector in degrees.</param>
     /// <param name="duration">The time in seconds the movement should take.</param>
     /// <param name="cancellationToken">A token to allow for cancellation of the movement task.</param>
-    private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float duration, CancellationToken cancellationToken)
+    private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float endEffectorTarget,float duration, CancellationToken cancellationToken)
     {
         // Capture the starting angle of each articulation.
         float startSwing = swingAb.xDrive.target;
@@ -276,6 +386,7 @@ public class PickAndPlace : MonoBehaviour
                 SetArticulationTarget(boomAb, Mathf.Lerp(startBoom, boomTarget, t));
                 SetArticulationTarget(armAb, Mathf.Lerp(startArm, armTarget, t));
                 SetArticulationTarget(handAb, Mathf.Lerp(startHand, handTarget, t));
+                SetArticulationTarget(endEffectorAb, Mathf.Lerp(startHand, endEffectorTarget, t));
 
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
@@ -287,6 +398,7 @@ public class PickAndPlace : MonoBehaviour
             SetArticulationTarget(boomAb, boomTarget);
             SetArticulationTarget(armAb, armTarget);
             SetArticulationTarget(handAb, handTarget);
+            SetArticulationTarget(endEffectorAb, endEffectorTarget);
         }
         catch (TaskCanceledException)
         {
