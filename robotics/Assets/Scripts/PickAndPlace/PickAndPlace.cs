@@ -37,11 +37,8 @@ public class PickAndPlace : MonoBehaviour
     [Header("End Effector")]
     [SerializeField] GameObject endEffector;
     [SerializeField] bool isAlignedToTable = true;
-    float gripperClosedAngle = 0.0f;
-    [SerializeField] float forceReductionDenominator = 500.0f;
     [SerializeField] float targetForce = 3.0f;
     [SerializeField] float targetAngularVelocity = 30.0f;
-    [SerializeField] float slowDownDenominator = 200.0f;
     [SerializeField] float minMaxGap = 0.01f;
 
     [Header("Coordinate Display")]
@@ -67,21 +64,12 @@ public class PickAndPlace : MonoBehaviour
     private ArticulationBody boomAb;
     private ArticulationBody armAb;
     private ArticulationBody handAb;
-    private ArticulationBody endEffectorAb;
-    private ArticulationBody fingerLAb;
-    private ArticulationBody fingerRAb;
-    private PressureSensor pressureSensorL;
-    private PressureSensor pressureSensorR;
-    private bool isGripping = false;
-    private float gripTargetForce;
-    private float gripAngularVelocity;
-    private float gripDirection;
-    private float currentGripAngle;
+    private ParallelGripper _parallelGripper;
 
     // Robot arm segment lengths (in meters).
     const float AB = 0.169f;
     const float CD = 0.273f;
-    const float HANDSIZE = 0.385f;
+    const float HANDSIZE = 0.39f;
     const float GF = HANDSIZE - CD;
     const float FE = 0.49727f;
     const float ED = 0.70142f;
@@ -90,42 +78,27 @@ public class PickAndPlace : MonoBehaviour
     /// Initializes the robot arm's articulation components, sets the initial pose,
     /// and subscribes to UI button events.
     /// </summary>
-    async Task Start()
+    async void Start()
     {
         swingAb = swing.GetComponent<ArticulationBody>();
         boomAb = boom.GetComponent<ArticulationBody>();
         armAb = arm.GetComponent<ArticulationBody>();
         handAb = hand.GetComponent<ArticulationBody>();
-        endEffectorAb = endEffector.GetComponent<ArticulationBody>();
-
-        // Initialize finger articulations and set initial target to the lower limit
-        var fingerL = endEffector.transform.Find("FingerL");
-        if (fingerL)
+        _parallelGripper = endEffector.GetComponent<ParallelGripper>();
+        try
         {
-            fingerLAb = fingerL.GetComponent<ArticulationBody>();
-            pressureSensorL = fingerL.GetComponent<PressureSensor>();
+            // Set the initial pose of the robot arm.
+            await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
+
+            // If in test mode, trigger the IK test sequence after a short delay.
+            if (ikTestMode)
+            {
+                await TestIKSequence();
+            }
         }
-
-        var fingerR = endEffector.transform.Find("FingerR");
-        if (fingerR)
+        catch (System.Exception e)
         {
-            fingerRAb = fingerR.GetComponent<ArticulationBody>();
-            pressureSensorR = fingerR.GetComponent<PressureSensor>();
-        }
-
-        if (fingerLAb) gripperClosedAngle = fingerLAb.xDrive.upperLimit;
-        else if (fingerRAb) gripperClosedAngle = fingerRAb.xDrive.upperLimit;
-
-        if (fingerLAb) SetArticulationTarget(fingerLAb, fingerLAb.xDrive.lowerLimit);
-        if (fingerRAb) SetArticulationTarget(fingerRAb, fingerRAb.xDrive.lowerLimit);
-
-        // Set the initial pose of the robot arm.
-        await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
-
-        // If in test mode, trigger the IK test sequence after a short delay.
-        if (ikTestMode)
-        {
-            _ = TestIKSequence();
+            Debug.LogException(e);
         }
 
         // Instantiate the GeminiRoboticsApi
@@ -139,7 +112,7 @@ public class PickAndPlace : MonoBehaviour
     {
         await Task.Delay(2000);
         await PerformIK();
-        Grip(targetForce, targetAngularVelocity);
+        await Grip(targetForce, targetAngularVelocity);
     }
 
     /// <summary>
@@ -157,33 +130,7 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     void FixedUpdate()
     {
-        if (isGripping)
-        {
-            if (fingerLAb == null || fingerRAb == null) return;
-
-            float dt = Time.fixedDeltaTime;
-            float currentAngle = currentGripAngle;
-            float targetAngle = gripperClosedAngle;
-
-            bool isColliding = (pressureSensorL != null && pressureSensorL.IsColliding) &&
-                               (pressureSensorR != null && pressureSensorR.IsColliding);
-            float currentSpeed = isColliding ? gripAngularVelocity / slowDownDenominator : gripAngularVelocity;
-
-            float nextAngle = Mathf.MoveTowards(currentAngle, targetAngle, currentSpeed * dt);
-
-            float forceL = pressureSensorL != null ? pressureSensorL.LastForce : 0f;
-            float forceR = pressureSensorR != null ? pressureSensorR.LastForce : 0f;
-
-            if (forceL > gripTargetForce && forceR > gripTargetForce)
-            {
-                float adjustment = (forceL + forceR - 2 * gripTargetForce) / forceReductionDenominator;
-                nextAngle -= gripDirection * adjustment;
-            }
-
-            currentGripAngle = nextAngle;
-            SetArticulationLimits(fingerLAb, nextAngle - minMaxGap, nextAngle);
-            SetArticulationLimits(fingerRAb, nextAngle - minMaxGap, nextAngle);
-        }
+        // The gripping logic is now handled by the ParallelGripper script.
     }
 
     /// <summary>
@@ -295,19 +242,10 @@ public class PickAndPlace : MonoBehaviour
     /// <summary>
     /// Closes the gripper fingers to the defined closed angle.
     /// </summary>
-    public void Grip(float targetForce, float angularVelocity)
+    public async Task Grip(float targetForce, float angularVelocity)
     {
-        if (fingerLAb == null || fingerRAb == null) return;
-
-        gripTargetForce = targetForce;
-        gripAngularVelocity = angularVelocity;
-        
-        currentGripAngle = fingerLAb.xDrive.target;
-        // Determine the direction of closing (1 for increasing angle, -1 for decreasing)
-        gripDirection = Mathf.Sign(gripperClosedAngle - currentGripAngle);
-        if (gripDirection == 0) gripDirection = 1;
-
-        isGripping = true;
+        if (_parallelGripper == null) return;
+        await _parallelGripper.Close(angularVelocity, targetForce);
     }
 
     /// <summary>
@@ -324,7 +262,7 @@ public class PickAndPlace : MonoBehaviour
         SetArticulationTarget(armAb, armAngle * Mathf.Rad2Deg);
         SetArticulationTarget(handAb, handAngle * Mathf.Rad2Deg);
         await Task.Delay(100);
-        await endEffector.GetComponent<ParallelGripper>().open(100f);
+        await _parallelGripper.Open(100f);
     }
 
     /// <summary>
@@ -336,20 +274,6 @@ public class PickAndPlace : MonoBehaviour
     {
         var drive = articulation.xDrive;
         drive.target = target;
-        articulation.xDrive = drive;
-    }
-
-    /// <summary>
-    /// Sets the lower and upper limits for the given articulation body's drive.
-    /// </summary>
-    /// <param name="articulation">The articulation body to update.</param>
-    /// <param name="lower">The lower limit in degrees.</param>
-    /// <param name="upper">The upper limit in degrees.</param>
-    void SetArticulationLimits(ArticulationBody articulation, float lower, float upper)
-    {
-        var drive = articulation.xDrive;
-        drive.lowerLimit = lower;
-        drive.upperLimit = upper;
         articulation.xDrive = drive;
     }
 
@@ -386,7 +310,7 @@ public class PickAndPlace : MonoBehaviour
                 SetArticulationTarget(boomAb, Mathf.Lerp(startBoom, boomTarget, t));
                 SetArticulationTarget(armAb, Mathf.Lerp(startArm, armTarget, t));
                 SetArticulationTarget(handAb, Mathf.Lerp(startHand, handTarget, t));
-                SetArticulationTarget(endEffectorAb, Mathf.Lerp(startHand, endEffectorTarget, t));
+                SetArticulationTarget(endEffector.GetComponent<ArticulationBody>(), Mathf.Lerp(startHand, endEffectorTarget, t));
 
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
@@ -398,7 +322,7 @@ public class PickAndPlace : MonoBehaviour
             SetArticulationTarget(boomAb, boomTarget);
             SetArticulationTarget(armAb, armTarget);
             SetArticulationTarget(handAb, handTarget);
-            SetArticulationTarget(endEffectorAb, endEffectorTarget);
+            SetArticulationTarget(endEffector.GetComponent<ArticulationBody>(), endEffectorTarget);
         }
         catch (TaskCanceledException)
         {

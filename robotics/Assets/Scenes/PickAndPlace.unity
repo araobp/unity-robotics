@@ -1936,6 +1936,39 @@ ArticulationBody:
   m_Immovable: 0
   m_UseGravity: 1
   m_CollisionDetectionMode: 0
+--- !u!114 &1070319127
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1070319122}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f750f3671829141f294b942ed568a2fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PressureSensor
+--- !u!65 &1070319128
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1070319122}
+  m_Material: {fileID: 13400000, guid: be5460217c1524429a2b4bc9b6828a31, type: 2}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.06614161, y: 0.007921954, z: 0.021787632}
+  m_Center: {x: -0.028364798, y: -0.013366967, z: 0.0000003774099}
 --- !u!1 &1130805248 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2605166087262861169, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
@@ -2929,6 +2962,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -2291082456862557490, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2013964938}
+    - targetCorrespondingSourceObject: {fileID: -2291082456862557490, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2013964940}
+    - targetCorrespondingSourceObject: {fileID: -2291082456862557490, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2013964939}
     - targetCorrespondingSourceObject: {fileID: 7413191369739468387, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 769672633}
@@ -2947,6 +2986,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 682066866276587104, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1070319126}
+    - targetCorrespondingSourceObject: {fileID: 682066866276587104, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1070319128}
+    - targetCorrespondingSourceObject: {fileID: 682066866276587104, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1070319127}
     - targetCorrespondingSourceObject: {fileID: 1896105898373678945, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1409224340}
@@ -4081,10 +4126,8 @@ MonoBehaviour:
   hand: {fileID: 1740728168}
   endEffector: {fileID: 1898462773}
   isAlignedToTable: 1
-  forceReductionDenominator: 500
   targetForce: 6
   targetAngularVelocity: 50
-  slowDownDenominator: 200
   minMaxGap: 0.005
   coordinateFinger: {fileID: 1230149235}
   coordinatePick: {fileID: 1004207195}
@@ -4361,6 +4404,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e017932b2e338485a89231e4e22de5fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ParallelGripper
+  minMaxGap: 0.01
+  forceReductionDenominator: 500
+  slowDownDenominator: 200
 --- !u!1 &1982925686 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -6532611923993502670, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
@@ -4503,6 +4549,39 @@ ArticulationBody:
   m_Immovable: 0
   m_UseGravity: 1
   m_CollisionDetectionMode: 0
+--- !u!114 &2013964939
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2013964934}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f750f3671829141f294b942ed568a2fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PressureSensor
+--- !u!65 &2013964940
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2013964934}
+  m_Material: {fileID: 13400000, guid: be5460217c1524429a2b4bc9b6828a31, type: 2}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.06614162, y: 0.007832915, z: 0.021787636}
+  m_Center: {x: -0.028364997, y: 0.013411458, z: 0.0000004057864}
 --- !u!1 &2113116252
 GameObject:
   m_ObjectHideFlags: 0
