@@ -84,15 +84,15 @@ public class ParallelGripper : MonoBehaviour
     // Initializes component references and gripper limits.
     void Start()
     {        
-        _fingerR = transform.Find("EndEffectorBase/Hand/P1R/FingerR").GetComponent<ArticulationBody>();
-        _plateR = transform.Find("EndEffectorBase/Hand/P1R/FingerR/P2R/PlateR").GetComponent<ArticulationBody>();
-        _fingerR2 = transform.Find("EndEffectorBase/Hand/P1R/FingerR/P2R/PlateR/P3R/FingerR2").GetComponent<ArticulationBody>();
-        _fingerL = transform.Find("EndEffectorBase/Hand/P1L/FingerL").GetComponent<ArticulationBody>();
-        _plateL = transform.Find("EndEffectorBase/Hand/P1L/FingerL/P2L/PlateL").GetComponent<ArticulationBody>();
-        _fingerL2 = transform.Find("EndEffectorBase/Hand/P1L/FingerL/P2L/PlateL/P3L/FingerL2").GetComponent<ArticulationBody>();
+        _fingerR = transform.Find("Palm/J1R/FingerR").GetComponent<ArticulationBody>();
+        _plateR = transform.Find("Palm/J1R/FingerR/J2R/PlateR").GetComponent<ArticulationBody>();
+        _fingerR2 = transform.Find("Palm/J1R/FingerR/J2R/PlateR/J3R/Finger2R").GetComponent<ArticulationBody>();
+        _fingerL = transform.Find("Palm/J1L/FingerL").GetComponent<ArticulationBody>();
+        _plateL = transform.Find("Palm/J1L/FingerL/J2L/PlateL").GetComponent<ArticulationBody>();
+        _fingerL2 = transform.Find("Palm/J1L/FingerL/J2L/PlateL/J3L/Finger2L").GetComponent<ArticulationBody>();
 
-        _pressureSensorR = transform.Find("EndEffectorBase/Hand/P1R/FingerR/P2R/PlateR").GetComponent<PressureSensor>();
-        _pressureSensorL = transform.Find("EndEffectorBase/Hand/P1L/FingerL/P2L/PlateL").GetComponent<PressureSensor>();
+        _pressureSensorR = transform.Find("Palm/J1R/FingerR/J2R/PlateR").GetComponent<PressureSensor>();
+        _pressureSensorL = transform.Find("Palm/J1L/FingerL/J2L/PlateL").GetComponent<PressureSensor>();
 
         _lowerLimit = _fingerR.xDrive.lowerLimit;
         _upperLimit = _fingerR.xDrive.upperLimit;
@@ -102,18 +102,29 @@ public class ParallelGripper : MonoBehaviour
     // Handles the physics-based movement and force application of the gripper.
     void FixedUpdate()
     {
-        if (_isMoving) // This is for opening, or closing before contact
+        if (_isMoving)
         {
-            // If we are closing and make contact, switch to holding mode
-            if (IsColliding() && _targetForce > 0f)
+            // This is for opening, or closing before contact is made or force is achieved
+            if (_targetForce > 0f && IsColliding())
             {
-                _isMoving = false;
-                _isHolding = true;
-                return;
+                // Read forces from sensors
+                float forceL = _pressureSensorL != null ? _pressureSensorL.LastForce : 0f;
+                float forceR = _pressureSensorR != null ? _pressureSensorR.LastForce : 0f;
+
+                // If we have achieved the target force, switch to holding mode and stop moving
+                if (forceL > _targetForce && forceR > _targetForce)
+                {
+                    Debug.Log($"Gripper achieved target force: Left={forceL}, Right={forceR}, Target={_targetForce}");
+                    _isMoving = false;
+                    _isHolding = true;
+                    // The holding logic will start next frame.
+                    // The Grip() task will complete now.
+                    return;
+                }
             }
 
             float currentSpeed = _angularVelocity;
-            // Slow down if we are colliding but not yet in holding mode (e.g. gentle close)
+            // Slow down if we are colliding but not yet at target force
             if (IsColliding())
             {
                 currentSpeed /= slowDownDenominator;
@@ -123,10 +134,11 @@ public class ParallelGripper : MonoBehaviour
             float newMasterValue = Mathf.MoveTowards(_currentTarget, _targetMasterValue, currentSpeed * Time.fixedDeltaTime);
             CurrentTarget = newMasterValue;
 
-            // Stop moving if we have reached the target
+            // Stop moving if we have reached the target (fully closed or fully open)
             if (Mathf.Approximately(_currentTarget, _targetMasterValue))
             {
                 _isMoving = false;
+                _isHolding = false; // If we reached the limit, we are not holding anything.
             }
         }
         else if (_isHolding) // This is for continuous gripping with force feedback
@@ -160,6 +172,10 @@ public class ParallelGripper : MonoBehaviour
     /// <returns>A task that completes when the gripper is fully open.</returns>
     public async Task Open(float angularVelocity)
     {
+        if (_isHolding)
+        {
+            ResetDriveLimits();
+        }
         _isHolding = false;
         _angularVelocity = angularVelocity;
         _targetMasterValue = _lowerLimit;
@@ -174,10 +190,10 @@ public class ParallelGripper : MonoBehaviour
     /// <summary>
     /// Asynchronously closes the gripper with a specified target force.
     /// </summary>
-    /// <param name="angularVelocity">The speed at which to close the gripper.</param>
     /// <param name="targetForce">The desired force to apply upon gripping an object. If 0, it will close until it hits the limit.</param>
+    /// <param name="angularVelocity">The speed at which to close the gripper.</param>
     /// <returns>A task that completes when the gripper has made contact with an object or has fully closed.</returns>
-    public async Task Close(float angularVelocity, float targetForce)
+    public async Task Close(float targetForce, float angularVelocity)
     {
         _angularVelocity = angularVelocity;
         _targetForce = targetForce;
@@ -198,6 +214,7 @@ public class ParallelGripper : MonoBehaviour
     {
         _isMoving = false;
         _isHolding = false;
+        ResetDriveLimits();
     }
 
     /// <summary>
@@ -233,5 +250,25 @@ public class ParallelGripper : MonoBehaviour
         }
 
         body.xDrive = drive;
+    }
+
+    /// <summary>
+    /// Resets the drive limits for all gripper articulation bodies to their original values.
+    /// This is necessary after a grip-hold operation to allow for full range of motion.
+    /// </summary>
+    private void ResetDriveLimits()
+    {
+        var drive = _fingerR.xDrive;
+        drive.lowerLimit = _lowerLimit;
+        drive.upperLimit = _upperLimit;
+        _fingerR.xDrive = drive;
+        _plateR.xDrive = drive;
+        _fingerR2.xDrive = drive;
+
+        drive.lowerLimit = -_upperLimit;
+        drive.upperLimit = -_lowerLimit;
+        _fingerL.xDrive = drive;
+        _plateL.xDrive = drive;
+        _fingerL2.xDrive = drive;
     }
 }

@@ -33,13 +33,13 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] GameObject boom;
     [SerializeField] GameObject arm;
     [SerializeField] GameObject hand;
+    [SerializeField] GameObject wrist;
 
     [Header("End Effector")]
     [SerializeField] GameObject endEffector;
     [SerializeField] bool isAlignedToTable = true;
     [SerializeField] float targetForce = 3.0f;
     [SerializeField] float targetAngularVelocity = 30.0f;
-    [SerializeField] float minMaxGap = 0.01f;
 
     [Header("Coordinate Display")]
     [SerializeField] Coordinate coordinateFinger;
@@ -64,13 +64,12 @@ public class PickAndPlace : MonoBehaviour
     private ArticulationBody boomAb;
     private ArticulationBody armAb;
     private ArticulationBody handAb;
-    private ParallelGripper _parallelGripper;
+    private ArticulationBody wristAb;
 
     // Robot arm segment lengths (in meters).
     const float AB = 0.169f;
     const float CD = 0.273f;
-    const float HANDSIZE = 0.39f;
-    const float GF = HANDSIZE - CD;
+    const float END_EFFECTOR_SIZE = 0.41f;
     const float FE = 0.49727f;
     const float ED = 0.70142f;
 
@@ -84,11 +83,11 @@ public class PickAndPlace : MonoBehaviour
         boomAb = boom.GetComponent<ArticulationBody>();
         armAb = arm.GetComponent<ArticulationBody>();
         handAb = hand.GetComponent<ArticulationBody>();
-        _parallelGripper = endEffector.GetComponent<ParallelGripper>();
+        wristAb = wrist.GetComponent<ArticulationBody>();
         try
         {
             // Set the initial pose of the robot arm.
-            await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2);
+            await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, isAlignedToTable ? 0 : Mathf.PI / 2);
 
             // If in test mode, trigger the IK test sequence after a short delay.
             if (ikTestMode)
@@ -111,8 +110,10 @@ public class PickAndPlace : MonoBehaviour
     private async Task TestIKSequence()
     {
         await Task.Delay(2000);
-        await PerformIK();
-        await Grip(targetForce, targetAngularVelocity);
+        await PerformIK(work.transform.localPosition); 
+        await Close(targetForce, targetAngularVelocity);
+        await Task.Delay(1000);
+        await PerformIK(work.transform.localPosition + new Vector3(-0.3f, 0.8f, -0.3f));
     }
 
     /// <summary>
@@ -120,7 +121,7 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     void Update()
     {
-        Vector3 fingerPos = robotBase.transform.InverseTransformPoint(endEffector.transform.position);
+        Vector3 fingerPos = robotBase.transform.InverseTransformPoint(wrist.transform.position);
         coordinateFinger.UpdatePositionText(fingerPos);
     }
 
@@ -181,10 +182,10 @@ public class PickAndPlace : MonoBehaviour
     /// It solves a 2D planar IK problem based on the geometric relationships of the robot arm's segments
     /// and then initiates the robot arm's movement.
     /// </summary>
-    public async Task PerformIK()
+    public async Task PerformIK(Vector3 workPosition)
     {
         // Calculate the target position relative to the robot base.
-        Vector3 A = work.transform.localPosition;
+        Vector3 A = workPosition;
         Debug.Log("Work position: " + A.ToString("F4"));
 
         float theta1 = Mathf.Atan2(A.z, A.x);
@@ -200,8 +201,7 @@ public class PickAndPlace : MonoBehaviour
         float theta2 = theta1 - theta3;
         Debug.Log("Theta2: " + (theta2 * Mathf.Rad2Deg).ToString("F4"));
 
-        Vector3 B = new Vector3(BC * Mathf.Cos(theta2), A.y, BC * Mathf.Sin(theta2));
-        Vector3 G = new Vector3(B.x, B.y + CD, B.z);
+        float GF = END_EFFECTOR_SIZE - CD + A.y;
 
         float r = Mathf.Sqrt(BC * BC + GF * GF);
         Debug.Log("r: " + r.ToString("F4"));
@@ -234,18 +234,23 @@ public class PickAndPlace : MonoBehaviour
         float boomTarget = -theat4 * Mathf.Rad2Deg;
         float armTarget = theat7 * Mathf.Rad2Deg;
         float handTarget = theat8 * Mathf.Rad2Deg;
-        float endEffectorTarget = isAlignedToTable ? swingTarget + 90f : swingTarget; // To keep the end effector aligned to the table
 
-        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, endEffectorTarget, ikMoveDuration, _ikMoveCts.Token);
+        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, ikMoveDuration, _ikMoveCts.Token);
     }
 
     /// <summary>
     /// Closes the gripper fingers to the defined closed angle.
     /// </summary>
-    public async Task Grip(float targetForce, float angularVelocity)
+    public async Task Close(float targetForce, float angularVelocity)
     {
-        if (_parallelGripper == null) return;
-        await _parallelGripper.Close(angularVelocity, targetForce);
+        if (endEffector == null) return;
+        await endEffector.GetComponent<ParallelGripper>().Close(targetForce, angularVelocity);
+    }
+
+    public async Task Open(float angularVelocity)
+    {
+        if (endEffector == null) return;
+        await endEffector.GetComponent<ParallelGripper>().Open(angularVelocity);
     }
 
     /// <summary>
@@ -255,14 +260,16 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="boomAngle">The angle for the boom articulation in radians.</param>
     /// <param name="armAngle">The angle for the arm articulation in radians.</param>
     /// <param name="handAngle">The angle for the hand articulation in radians.</param>
-    async Task setPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
+    /// <param name="wristAngle">The angle for the wrist articulation in radians.</param>
+    async Task setPose(float swingAngle, float boomAngle, float armAngle, float handAngle, float wristAngle)
     {
         SetArticulationTarget(swingAb, -swingAngle * Mathf.Rad2Deg);
         SetArticulationTarget(boomAb, -boomAngle * Mathf.Rad2Deg);
         SetArticulationTarget(armAb, armAngle * Mathf.Rad2Deg);
         SetArticulationTarget(handAb, handAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(wristAb, -wristAngle * Mathf.Rad2Deg);
         await Task.Delay(100);
-        await _parallelGripper.Open(100f);
+        await Open(100f);
     }
 
     /// <summary>
@@ -284,16 +291,16 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="boomTarget">The target angle for the boom articulation in degrees.</param>
     /// <param name="armTarget">The target angle for the arm articulation in degrees.</param>
     /// <param name="handTarget">The target angle for the hand articulation in degrees.</param>
-    /// <param name="endEffectorTarget">The target angle for the end effector in degrees.</param>
+    /// <param name="wristTarget">The target angle for the end effector in degrees.</param>
     /// <param name="duration">The time in seconds the movement should take.</param>
     /// <param name="cancellationToken">A token to allow for cancellation of the movement task.</param>
-    private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float endEffectorTarget,float duration, CancellationToken cancellationToken)
+    private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float duration, CancellationToken cancellationToken)
     {
         // Capture the starting angle of each articulation.
-        float startSwing = swingAb.xDrive.target;
-        float startBoom = boomAb.xDrive.target;
-        float startArm = armAb.xDrive.target;
-        float startHand = handAb.xDrive.target;
+        float swingStart = swingAb.xDrive.target;
+        float boomStart = boomAb.xDrive.target;
+        float armStart = armAb.xDrive.target;
+        float handStart = handAb.xDrive.target;
 
         float elapsedTime = 0f;
 
@@ -306,11 +313,12 @@ public class PickAndPlace : MonoBehaviour
 
                 // Smoothly interpolate articulation angles.
                 float t = elapsedTime / duration;
-                SetArticulationTarget(swingAb, Mathf.Lerp(startSwing, swingTarget, t));
-                SetArticulationTarget(boomAb, Mathf.Lerp(startBoom, boomTarget, t));
-                SetArticulationTarget(armAb, Mathf.Lerp(startArm, armTarget, t));
-                SetArticulationTarget(handAb, Mathf.Lerp(startHand, handTarget, t));
-                SetArticulationTarget(endEffector.GetComponent<ArticulationBody>(), Mathf.Lerp(startHand, endEffectorTarget, t));
+                float swingRotation = Mathf.Lerp(swingStart, swingTarget, t);
+                SetArticulationTarget(swingAb, swingRotation);
+                SetArticulationTarget(boomAb, Mathf.Lerp(boomStart, boomTarget, t));
+                SetArticulationTarget(armAb, Mathf.Lerp(armStart, armTarget, t));
+                SetArticulationTarget(handAb, Mathf.Lerp(handStart, handTarget, t));
+                SetArticulationTarget(wristAb, isAlignedToTable? swingRotation -90: swingRotation);
 
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
@@ -322,7 +330,7 @@ public class PickAndPlace : MonoBehaviour
             SetArticulationTarget(boomAb, boomTarget);
             SetArticulationTarget(armAb, armTarget);
             SetArticulationTarget(handAb, handTarget);
-            SetArticulationTarget(endEffector.GetComponent<ArticulationBody>(), endEffectorTarget);
+            SetArticulationTarget(wristAb, isAlignedToTable? swingTarget -90: swingTarget);
         }
         catch (TaskCanceledException)
         {
