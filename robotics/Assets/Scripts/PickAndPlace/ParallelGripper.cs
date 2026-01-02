@@ -2,68 +2,118 @@ using UnityEngine;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Controls a parallel gripper mechanism using ArticulationBody components.
-/// It allows for asynchronous opening and closing of the gripper with force control.
+/// Implements the <see cref="IGripper"/> and <see cref="IEndEffector"/> interfaces to control
+/// a parallel gripper mechanism using ArticulationBody components. This script provides
+/// asynchronous opening and closing functionality with integrated force control feedback.
 /// </summary>
-public class ParallelGripper : MonoBehaviour
+public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
 {
-    // Articulation bodies for the right side of the gripper
+    /// <summary>
+    /// The ArticulationBody for the main component of the right finger.
+    /// </summary>
     private ArticulationBody _fingerR;
+    /// <summary>
+    /// The ArticulationBody for the plate component of the right finger.
+    /// </summary>
     private ArticulationBody _plateR;
+    /// <summary>
+    /// The ArticulationBody for the secondary component of the right finger.
+    /// </summary>
     private ArticulationBody _fingerR2;
 
-    // Articulation bodies for the left side of the gripper
+    /// <summary>
+    /// The ArticulationBody for the main component of the left finger.
+    /// </summary>
     private ArticulationBody _fingerL;
+    /// <summary>
+    /// The ArticulationBody for the plate component of the left finger.
+    /// </summary>
     private ArticulationBody _plateL;
+    /// <summary>
+    /// The ArticulationBody for the secondary component of the left finger.
+    /// </summary>
     private ArticulationBody _fingerL2;
 
-    // Pressure sensors to detect contact and force
+    /// <summary>
+    /// The pressure sensor on the right finger, used to detect contact and measure applied force.
+    /// </summary>
     private PressureSensor _pressureSensorR;
+    /// <summary>
+    /// The pressure sensor on the left finger, used to detect contact and measure applied force.
+    /// </summary>
     private PressureSensor _pressureSensorL;
 
-    // Gripper joint limits
+    /// <summary>
+    /// The lower limit of the gripper's primary joint drive, representing the fully open state.
+    /// </summary>
     private float _lowerLimit = 0f;
+    /// <summary>
+    /// The upper limit of the gripper's primary joint drive, representing the fully closed state.
+    /// </summary>
     private float _upperLimit = 0f;
  
-    // The compliance gap for the gripper articulations when holding an object.
-    [SerializeField] private float minMaxGap = 0.01f;
+    [Header("Gripper Settings")]
+    [Tooltip("The compliance gap for the gripper's articulation drives when holding an object. This allows for a more stable grip.")]
+    [SerializeField] private float minMaxGap = 0.1f;
 
-    // Denominator for reducing force to prevent excessive force application.
+    [Tooltip("A factor used to reduce the applied force during a hold, preventing excessive pressure on the gripped object.")]
     [SerializeField] private float forceReductionDenominator = 500.0f;
-    // Denominator for slowing down gripper movement upon collision.
+    [Tooltip("A factor used to slow down the gripper's movement upon collision, before the target force is reached.")]
     [SerializeField] private float slowDownDenominator = 200.0f;
  
-    // State flags
-    // True if the gripper is actively opening or closing.
+    // --- State variables ---
+
+    /// <summary>
+    /// A state flag that is true when the gripper is actively moving towards a target position (opening or closing).
+    /// </summary>
     private bool _isMoving = false;
-    // True if the gripper is holding an object with force.
+    /// <summary>
+    /// A state flag that is true when the gripper is actively holding an object by applying a continuous force.
+    /// </summary>
     private bool _isHolding = false;
 
-    // Target and movement variables
-    // The current target position of the gripper.
+    // --- Movement and Target variables ---
+
+    /// <summary>
+    /// The current target position for the gripper's master joint drive.
+    /// </summary>
     private float _currentTarget;
-    // The desired final target position for the current movement.
+    /// <summary>
+    /// The final target position for the current movement, which is typically either the open or closed limit.
+    /// </summary>
     private float _targetMasterValue;
-    // The speed at which the gripper moves.
+    /// <summary>
+    /// The angular velocity (speed) for the current gripper movement.
+    /// </summary>
     private float _angularVelocity;
-    // The desired force to apply when gripping an object.
+    /// <summary>
+    /// The desired force in Newtons to apply and maintain when in a holding state.
+    /// </summary>
     private float _targetForce;
 
     /// <summary>
-    /// Gets the current target position of the gripper's joints.
-    /// The setter is private and applies the target value to all finger articulation bodies.
+    /// Gets the characteristic size of the end effector in meters. For a gripper, this is
+    /// typically the length from the wrist joint to the gripping point. This value is crucial
+    /// for accurate Inverse Kinematics (IK) calculations to position the end effector correctly.
     /// </summary>
-    public float CurrentTarget
+    public float EndEffectorSize => 0.392f;
+
+    /// <summary>
+    /// Gets the current target position of the gripper's master joint drive.
+    /// The private setter applies this target value to all individual finger articulation bodies,
+    /// correctly handling the opposing motion required for a parallel gripper and applying a compliance gap when in a holding state.
+    /// </summary>
+    public float CurrentDriveTarget
     {
         get { return _currentTarget; }
         private set
         {
             bool applyGap = _isHolding;
-            // set x drive target for right finger
+            // The right side moves in the positive direction to close the gripper.
             SetDriveProperties(_fingerR, value, applyGap);
             SetDriveProperties(_plateR, value, applyGap);
             SetDriveProperties(_fingerR2, value, applyGap);
-            // set x drive target for left finger
+            // The left side moves in the positive direction to close the gripper.
             SetDriveProperties(_fingerL, value, applyGap);
             SetDriveProperties(_plateL, value, applyGap);
             SetDriveProperties(_fingerL2, value, applyGap);
@@ -81,8 +131,10 @@ public class ParallelGripper : MonoBehaviour
     public float RightFingerForce => _pressureSensorR.LastForce;
 
 
-    // Initializes component references and gripper limits.
-    void Start()
+    /// <summary>
+    /// Initializes component references and gripper joint limits upon startup.
+    /// </summary>
+    private void Start()
     {        
         _fingerR = transform.Find("Palm/J1R/FingerR").GetComponent<ArticulationBody>();
         _plateR = transform.Find("Palm/J1R/FingerR/J2R/PlateR").GetComponent<ArticulationBody>();
@@ -99,32 +151,35 @@ public class ParallelGripper : MonoBehaviour
         _currentTarget = _fingerR.xDrive.target;
     }
 
-    // Handles the physics-based movement and force application of the gripper.
-    void FixedUpdate()
+    /// <summary>
+    /// Handles the physics-based movement and force application of the gripper on a fixed timestep.
+    /// </summary>
+    private void FixedUpdate()
     {
+        // State: Moving towards a target position (opening or closing).
         if (_isMoving)
         {
-            // This is for opening, or closing before contact is made or force is achieved
+            // During a close operation with force, check for contact and target force achievement.
             if (_targetForce > 0f && IsColliding())
             {
-                // Read forces from sensors
+                // Read the force currently being applied by each finger.
                 float forceL = _pressureSensorL != null ? _pressureSensorL.LastForce : 0f;
                 float forceR = _pressureSensorR != null ? _pressureSensorR.LastForce : 0f;
 
-                // If we have achieved the target force, switch to holding mode and stop moving
+                // If we have achieved the target force, switch to holding mode and stop the movement task.
                 if (forceL > _targetForce && forceR > _targetForce)
                 {
                     Debug.Log($"Gripper achieved target force: Left={forceL}, Right={forceR}, Target={_targetForce}");
-                    _isMoving = false;
+                    _isMoving = false; // This will terminate the async task in Close() or Open().
                     _isHolding = true;
                     // The holding logic will start next frame.
-                    // The Grip() task will complete now.
+                    // The Close() task will now complete.
                     return;
                 }
             }
 
             float currentSpeed = _angularVelocity;
-            // Slow down if we are colliding but not yet at target force
+            // If colliding but not yet at the target force, slow down the movement.
             if (IsColliding())
             {
                 currentSpeed /= slowDownDenominator;
@@ -132,18 +187,19 @@ public class ParallelGripper : MonoBehaviour
 
             // Move towards the target position
             float newMasterValue = Mathf.MoveTowards(_currentTarget, _targetMasterValue, currentSpeed * Time.fixedDeltaTime);
-            CurrentTarget = newMasterValue;
+            CurrentDriveTarget = newMasterValue;
 
-            // Stop moving if we have reached the target (fully closed or fully open)
+            // If we have reached the target position (fully open or fully closed), stop moving.
             if (Mathf.Approximately(_currentTarget, _targetMasterValue))
             {
                 _isMoving = false;
                 _isHolding = false; // If we reached the limit, we are not holding anything.
             }
         }
-        else if (_isHolding) // This is for continuous gripping with force feedback
+        // State: Actively holding an object with a specific force.
+        else if (_isHolding)
         {
-            // Move slowly towards the target to maintain grip
+            // Continue to move slowly towards the target to maintain a firm grip.
             float currentSpeed = _angularVelocity / slowDownDenominator;
             float newMasterValue = Mathf.MoveTowards(_currentTarget, _targetMasterValue, currentSpeed * Time.fixedDeltaTime);
 
@@ -151,17 +207,16 @@ public class ParallelGripper : MonoBehaviour
             float forceL = _pressureSensorL != null ? _pressureSensorL.LastForce : 0f;
             float forceR = _pressureSensorR != null ? _pressureSensorR.LastForce : 0f;
 
-            // If both fingers are applying more force than the target, adjust the grip
+            // If both fingers are applying more force than desired, slightly release the grip
+            // to maintain the target force. This creates a force-feedback loop.
             if (forceL > _targetForce && forceR > _targetForce)
             {
-                float gripDirection = Mathf.Sign(_targetMasterValue - _currentTarget);
-                if (gripDirection == 0) gripDirection = 1;
-                // Calculate adjustment based on excess force
+                // Calculate the adjustment based on the excess force.
                 float adjustment = (forceL + forceR - 2 * _targetForce) / forceReductionDenominator;
-                newMasterValue -= gripDirection * adjustment;
+                newMasterValue -= adjustment;
             }
 
-            CurrentTarget = newMasterValue;
+            CurrentDriveTarget = newMasterValue;
         }
     }
 
@@ -172,6 +227,7 @@ public class ParallelGripper : MonoBehaviour
     /// <returns>A task that completes when the gripper is fully open.</returns>
     public async Task Open(float angularVelocity)
     {
+        // If we were holding something, reset the joint limits to allow full range of motion.
         if (_isHolding)
         {
             ResetDriveLimits();
@@ -181,6 +237,7 @@ public class ParallelGripper : MonoBehaviour
         _targetMasterValue = _lowerLimit;
         _isMoving = true;
 
+        // Wait until the movement is complete.
         while (_isMoving)
         {
             await Task.Yield();
@@ -201,6 +258,7 @@ public class ParallelGripper : MonoBehaviour
         _isHolding = false;
         _isMoving = true;
 
+        // Wait until the movement is complete (either fully closed or holding an object).
         while (_isMoving)
         {
             await Task.Yield();
@@ -243,10 +301,11 @@ public class ParallelGripper : MonoBehaviour
 
         if (applyGap)
         {
-            // Create a small compliance gap to allow for a more stable grip.
+            // Create a small, one-sided compliance gap to allow for a more stable grip.
             // This is based on the logic from the original PickAndPlace script.
+            // It allows the joint to move back from the target, but not past it.
             drive.lowerLimit = target - minMaxGap;
-            drive.upperLimit = target + minMaxGap;
+            drive.upperLimit = target;
         }
 
         body.xDrive = drive;
@@ -265,6 +324,7 @@ public class ParallelGripper : MonoBehaviour
         _plateR.xDrive = drive;
         _fingerR2.xDrive = drive;
 
+        // The left side has inverted limits relative to the right side.
         drive.lowerLimit = -_upperLimit;
         drive.upperLimit = -_lowerLimit;
         _fingerL.xDrive = drive;

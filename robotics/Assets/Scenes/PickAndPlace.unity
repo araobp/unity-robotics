@@ -564,7 +564,7 @@ ArticulationBody:
   m_GameObject: {fileID: 227049396}
   m_Enabled: 1
   serializedVersion: 5
-  m_Mass: 0.2
+  m_Mass: 0.1
   m_ParentAnchorPosition: {x: 0.00000028312206, y: 0.00000022874296, z: 0.00000009339469}
   m_ParentAnchorRotation: {x: 0, y: 0.7071066, z: 0, w: -0.7071066}
   m_AnchorPosition: {x: 0, y: 0, z: 0}
@@ -620,7 +620,7 @@ ArticulationBody:
   m_ImplicitTensor: 1
   m_Immovable: 0
   m_UseGravity: 1
-  m_CollisionDetectionMode: 0
+  m_CollisionDetectionMode: 2
 --- !u!65 &227049403
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1506,7 +1506,7 @@ ArticulationBody:
   m_GameObject: {fileID: 792601057}
   m_Enabled: 1
   serializedVersion: 5
-  m_Mass: 0.2
+  m_Mass: 0.1
   m_ParentAnchorPosition: {x: 0.000000016873594, y: 0.00000014342555, z: 0.00000016305239}
   m_ParentAnchorRotation: {x: 0, y: 0.7071066, z: 0, w: 0.7071066}
   m_AnchorPosition: {x: 0, y: 0, z: 0}
@@ -2066,7 +2066,7 @@ ArticulationBody:
   m_GameObject: {fileID: 1104569742}
   m_Enabled: 1
   serializedVersion: 5
-  m_Mass: 0.2
+  m_Mass: 0.1
   m_ParentAnchorPosition: {x: 2.1039648e-28, y: -0.00000010967836, z: -0.000000032610483}
   m_ParentAnchorRotation: {x: 0, y: 0.70710665, z: 0, w: 0.70710665}
   m_AnchorPosition: {x: 0, y: 0, z: 0}
@@ -2282,7 +2282,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e017932b2e338485a89231e4e22de5fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ParallelGripper
-  minMaxGap: 0.01
+  minMaxGap: 0.1
   forceReductionDenominator: 500
   slowDownDenominator: 200
 --- !u!171741748 &1181100473
@@ -3456,7 +3456,7 @@ ArticulationBody:
   m_GameObject: {fileID: 1384297237}
   m_Enabled: 1
   serializedVersion: 5
-  m_Mass: 0.2
+  m_Mass: 0.1
   m_ParentAnchorPosition: {x: 0.000000461936, y: -0.00000020513245, z: -0.00000008427436}
   m_ParentAnchorRotation: {x: 0, y: -0.70710665, z: 0, w: 0.70710665}
   m_AnchorPosition: {x: 0, y: 0, z: 0}
@@ -3512,7 +3512,7 @@ ArticulationBody:
   m_ImplicitTensor: 1
   m_Immovable: 0
   m_UseGravity: 1
-  m_CollisionDetectionMode: 0
+  m_CollisionDetectionMode: 2
 --- !u!65 &1384297244
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -4091,7 +4091,7 @@ ArticulationBody:
   m_GameObject: {fileID: 1639997101}
   m_Enabled: 1
   serializedVersion: 5
-  m_Mass: 0.2
+  m_Mass: 0.1
   m_ParentAnchorPosition: {x: 0.0000003501773, y: -0.00000025704503, z: -0.00000005447215}
   m_ParentAnchorRotation: {x: 0, y: 0.70710665, z: 0, w: 0.70710665}
   m_AnchorPosition: {x: 0, y: 0, z: 0}
@@ -4626,7 +4626,7 @@ ArticulationBody:
   m_GameObject: {fileID: 2027196090}
   m_Enabled: 1
   serializedVersion: 5
-  m_Mass: 0.02
+  m_Mass: 0.1
   m_ParentAnchorPosition: {x: 0.00000040978193, y: 0.0000003427267, z: 0.0000001220521}
   m_ParentAnchorRotation: {x: 0, y: 0.7071066, z: 0, w: 0.7071066}
   m_AnchorPosition: {x: 0, y: 0, z: 0}

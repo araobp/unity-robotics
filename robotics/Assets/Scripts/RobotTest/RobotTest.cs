@@ -69,7 +69,7 @@ public class RobotTest : MonoBehaviour
         // Define the fixed lengths of each segment of the robot arm.
         const float AB = 0.169f;
         const float CD = 0.273f;
-        const float HANDSIZE = 0.325f;
+        const float HANDSIZE = 0.42f;
         const float GF = HANDSIZE - CD;
         const float FE = 0.49727f;
         const float ED = 0.70142f;
