@@ -17,6 +17,9 @@ public class PickAndPlace : MonoBehaviour
     [Header("IK Test Mode")]
     [SerializeField] bool ikTestMode = false;
 
+    [Header("Placement Target")]
+    [SerializeField] GameObject placeTarget;
+
     // The target GameObject that the robot arm's end effector will attempt to reach.
     [Header("IK Target")]
     [SerializeField] GameObject work;
@@ -118,13 +121,20 @@ public class PickAndPlace : MonoBehaviour
     /// <summary>
     /// Runs a pre-defined sequence of movements to test the inverse kinematics and gripper functionality.
     /// </summary>
-    private async Task TestIKSequence()
+    private async Task TestIKSequence() 
     {
         await Task.Delay(2000);
         await PerformIK(work.transform.localPosition);
         await Close(targetForce, targetAngularVelocity);
         await Task.Delay(1000);
-        await PerformIK(work.transform.localPosition + new Vector3(-0.3f, 0.8f, -0.3f));
+        await PerformIK(work.transform.localPosition + new Vector3(0f, 0.4f, 0f));
+        await Task.Delay(1000);
+        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.4f, 0f));
+        await Task.Delay(1000);
+        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.04f, 0f));
+        await Task.Delay(1000);
+        await Open(targetAngularVelocity);
+        await Task.Delay(1000);
     }
 
     /// <summary>

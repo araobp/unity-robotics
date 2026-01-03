@@ -362,7 +362,7 @@ Rigidbody:
   m_IsKinematic: 0
   m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 2
+  m_CollisionDetection: 1
 --- !u!65 &131571067
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2282,9 +2282,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e017932b2e338485a89231e4e22de5fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ParallelGripper
-  minMaxGap: 0.1
-  forceReductionDenominator: 500
-  slowDownDenominator: 200
+  minMaxGap: 1
+  forceReductionDenominator: 10000
+  slowDownDenominator: 100
 --- !u!171741748 &1181100473
 ArticulationBody:
   m_ObjectHideFlags: 0
@@ -4205,8 +4205,8 @@ MonoBehaviour:
   wrist: {fileID: 1864796419}
   endEffector: {fileID: 1181100468}
   isAlignedToTable: 1
-  targetForce: 3
-  targetAngularVelocity: 50
+  targetForce: 5
+  targetAngularVelocity: 80
   coordinateFinger: {fileID: 1230149235}
   coordinatePick: {fileID: 1004207195}
   coordinatePlace: {fileID: 1794102305}

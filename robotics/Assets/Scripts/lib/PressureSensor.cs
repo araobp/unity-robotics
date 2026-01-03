@@ -36,6 +36,12 @@ public class PressureSensor : MonoBehaviour
     /// </summary>
     public bool IsColliding => _isColliding;
 
+    private GameObject _contactObject;
+    /// <summary>
+    /// Gets the object that this sensor is colliding with.
+    /// </summary>
+    public GameObject ContactObject => _contactObject;
+
     /// <summary>
     /// Unity message for when a collision first occurs.
     /// </summary>
@@ -47,6 +53,7 @@ public class PressureSensor : MonoBehaviour
         _lastMass = collision.rigidbody.mass;
         var col = GetComponent<Collider>();
         _lastFriction = (collision.collider.material.staticFriction + col.material.staticFriction) / 2.0f;
+        _contactObject = collision.gameObject;
     }
 
     /// <summary>
@@ -57,6 +64,7 @@ public class PressureSensor : MonoBehaviour
     private void OnCollisionStay(Collision collision)
     {
         CalculateForceAndPressure(collision);
+        _contactObject = collision.gameObject;
     }
 
     /// <summary>
@@ -71,6 +79,7 @@ public class PressureSensor : MonoBehaviour
         _lastFriction = 0f;
         _lastForce = 0f;
         _lastPressure = 0f;
+        _contactObject = null;
     }
 
     /// <summary>

@@ -35,6 +35,21 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     private ArticulationBody _fingerL2;
 
     /// <summary>
+    /// The Collider for the plate component of the right finger.
+    /// </summary>
+    private Collider _plateColliderR;
+    /// <summary>
+    /// The Collider for the plate component of the left finger.
+    /// </summary>
+    private Collider _plateColliderL;
+
+    // Original physics materials for the plates
+    private PhysicsMaterial _originalPlateMaterialR;
+    private PhysicsMaterial _originalPlateMaterialL;
+
+    // A physics material with high friction to apply when holding an object.
+    private PhysicsMaterial _strongFrictionMaterial;
+    /// <summary>
     /// The pressure sensor on the right finger, used to detect contact and measure applied force.
     /// </summary>
     private PressureSensor _pressureSensorR;
@@ -52,7 +67,8 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// </summary>
     private float _upperLimit = 0f;
  
-    [Header("Gripper Settings")]
+    [Header("Gripper movement settings")]
+
     [Tooltip("The compliance gap for the gripper's articulation drives when holding an object. This allows for a more stable grip.")]
     [SerializeField] private float minMaxGap = 0.1f;
 
@@ -60,7 +76,14 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     [SerializeField] private float forceReductionDenominator = 500.0f;
     [Tooltip("A factor used to slow down the gripper's movement upon collision, before the target force is reached.")]
     [SerializeField] private float slowDownDenominator = 200.0f;
- 
+
+    [Header("Gripper holding settings")]
+    [Tooltip("Enable to apply a high-friction material to the finger plates when holding an object.")]
+    [SerializeField] private bool useHighFrictionWhenHolding = true;
+    [Tooltip("The friction value to use for the high-friction material when holding an object.")]
+    [SerializeField] private float highFrictionValue = 5f;
+
+
     // --- State variables ---
 
     /// <summary>
@@ -143,6 +166,27 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         _plateL = transform.Find("Palm/J1L/FingerL/J2L/PlateL").GetComponent<ArticulationBody>();
         _fingerL2 = transform.Find("Palm/J1L/FingerL/J2L/PlateL/J3L/Finger2L").GetComponent<ArticulationBody>();
 
+        _plateColliderR = _plateR.GetComponent<Collider>();
+        _plateColliderL = _plateL.GetComponent<Collider>();
+
+        if (useHighFrictionWhenHolding)
+        {
+            if (_plateColliderR != null)
+                _originalPlateMaterialR = _plateColliderR.material;
+            else
+                Debug.LogWarning("Right plate collider not found. High friction will not be applied.");
+
+            if (_plateColliderL != null)
+                _originalPlateMaterialL = _plateColliderL.material;
+            else
+                Debug.LogWarning("Left plate collider not found. High friction will not be applied.");
+
+            _strongFrictionMaterial = new PhysicsMaterial("StrongFriction");
+            _strongFrictionMaterial.dynamicFriction = highFrictionValue;
+            _strongFrictionMaterial.staticFriction = highFrictionValue;
+            _strongFrictionMaterial.frictionCombine = PhysicsMaterialCombine.Maximum;
+        }
+
         _pressureSensorR = transform.Find("Palm/J1R/FingerR/J2R/PlateR").GetComponent<PressureSensor>();
         _pressureSensorL = transform.Find("Palm/J1L/FingerL/J2L/PlateL").GetComponent<PressureSensor>();
 
@@ -172,6 +216,13 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
                     Debug.Log($"Gripper achieved target force: Left={forceL}, Right={forceR}, Target={_targetForce}");
                     _isMoving = false; // This will terminate the async task in Close() or Open().
                     _isHolding = true;
+
+                    if (useHighFrictionWhenHolding)
+                    {
+                        if (_plateColliderR != null) _plateColliderR.material = _strongFrictionMaterial;
+                        if (_plateColliderL != null) _plateColliderL.material = _strongFrictionMaterial;
+                    }
+
                     // The holding logic will start next frame.
                     // The Close() task will now complete.
                     return;
@@ -179,8 +230,8 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
             }
 
             float currentSpeed = _angularVelocity;
-            // If colliding but not yet at the target force, slow down the movement.
-            if (IsColliding())
+            // If closing and colliding but not yet at the target force, slow down the movement.
+            if (IsColliding() && _targetMasterValue == _upperLimit)
             {
                 currentSpeed /= slowDownDenominator;
             }
@@ -199,21 +250,25 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         // State: Actively holding an object with a specific force.
         else if (_isHolding)
         {
-            // Continue to move slowly towards the target to maintain a firm grip.
-            float currentSpeed = _angularVelocity / slowDownDenominator;
-            float newMasterValue = Mathf.MoveTowards(_currentTarget, _targetMasterValue, currentSpeed * Time.fixedDeltaTime);
 
             // Read forces from sensors
             float forceL = _pressureSensorL != null ? _pressureSensorL.LastForce : 0f;
             float forceR = _pressureSensorR != null ? _pressureSensorR.LastForce : 0f;
 
-            // If both fingers are applying more force than desired, slightly release the grip
+            // New target value to apply to the gripper drive
+            float newMasterValue;
+
             // to maintain the target force. This creates a force-feedback loop.
             if (forceL > _targetForce && forceR > _targetForce)
             {
                 // Calculate the adjustment based on the excess force.
                 float adjustment = (forceL + forceR - 2 * _targetForce) / forceReductionDenominator;
-                newMasterValue -= adjustment;
+                newMasterValue = _currentTarget - adjustment;
+            } else
+            {
+                // Continue to move slowly towards the target to maintain a firm grip.
+                float currentSpeed = _angularVelocity / slowDownDenominator;
+                newMasterValue = Mathf.MoveTowards(_currentTarget, _targetMasterValue, currentSpeed * Time.fixedDeltaTime);
             }
 
             CurrentDriveTarget = newMasterValue;
@@ -231,8 +286,15 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         if (_isHolding)
         {
             ResetDriveLimits();
+            if (useHighFrictionWhenHolding)
+            {
+                if (_plateColliderR != null) _plateColliderR.material = _originalPlateMaterialR;
+                if (_plateColliderL != null) _plateColliderL.material = _originalPlateMaterialL;
+            }
         }
         _isHolding = false;
+        // Reset target force to prevent incorrect behavior if Open is called after a Close with force.
+        _targetForce = 0f;
         _angularVelocity = angularVelocity;
         _targetMasterValue = _lowerLimit;
         _isMoving = true;
@@ -270,6 +332,11 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// </summary>
     public void Stop()
     {
+        if (_isHolding && useHighFrictionWhenHolding)
+        {
+            if (_plateColliderR != null) _plateColliderR.material = _originalPlateMaterialR;
+            if (_plateColliderL != null) _plateColliderL.material = _originalPlateMaterialL;
+        }
         _isMoving = false;
         _isHolding = false;
         ResetDriveLimits();
@@ -317,18 +384,19 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// </summary>
     private void ResetDriveLimits()
     {
-        var drive = _fingerR.xDrive;
-        drive.lowerLimit = _lowerLimit;
-        drive.upperLimit = _upperLimit;
-        _fingerR.xDrive = drive;
-        _plateR.xDrive = drive;
-        _fingerR2.xDrive = drive;
+        var driveR = _fingerR.xDrive;
+        driveR.lowerLimit = _lowerLimit;
+        driveR.upperLimit = _upperLimit;
+        _fingerR.xDrive = driveR;
+        _plateR.xDrive = driveR;
+        _fingerR2.xDrive = driveR;
 
-        // The left side has inverted limits relative to the right side.
-        drive.lowerLimit = -_upperLimit;
-        drive.upperLimit = -_lowerLimit;
-        _fingerL.xDrive = drive;
-        _plateL.xDrive = drive;
-        _fingerL2.xDrive = drive;
+        // The left side also has the same limits of the right side.
+        var driveL = _fingerL.xDrive;
+        driveL.lowerLimit = _lowerLimit;
+        driveL.upperLimit = _upperLimit;
+        _fingerL.xDrive = driveL;
+        _plateL.xDrive = driveL;
+        _fingerL2.xDrive = driveL;
     }
 }
