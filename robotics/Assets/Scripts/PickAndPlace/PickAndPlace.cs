@@ -26,8 +26,10 @@ public class PickAndPlace : MonoBehaviour
 
     // Inverse kinematics behavior settings.
     [Header("IK Settings")]
-    [Tooltip("The duration in seconds for the IK movement to complete.")]
-    [SerializeField] private float ikMoveDuration = 3.0f;
+    [Tooltip("The angular speed of the fastest joint in degrees per second during an IK movement.")]
+    [SerializeField] private float ikAngularSpeed = 60.0f;
+    [Tooltip("Whether to use Ease-in/Ease-out interpolation for smoother movement.")]
+    [SerializeField] bool useEaseinEaseout = true;
 
     [Header("Robot Base")]
     [SerializeField] GameObject robotBase;
@@ -124,16 +126,21 @@ public class PickAndPlace : MonoBehaviour
     private async Task TestIKSequence() 
     {
         await Task.Delay(2000);
+        await PerformIK(work.transform.localPosition + new Vector3(0f, 0.4f, 0f));
+        await Task.Delay(1000);
         await PerformIK(work.transform.localPosition);
+        await Task.Delay(1000);
         await Close(targetForce, targetAngularVelocity);
         await Task.Delay(1000);
         await PerformIK(work.transform.localPosition + new Vector3(0f, 0.4f, 0f));
         await Task.Delay(1000);
         await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.4f, 0f));
         await Task.Delay(1000);
-        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.04f, 0f));
+        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.15f, 0f));
         await Task.Delay(1000);
         await Open(targetAngularVelocity);
+        await Task.Delay(1000);
+        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.4f, 0f));
         await Task.Delay(1000);
     }
 
@@ -206,7 +213,8 @@ public class PickAndPlace : MonoBehaviour
     /// based on the geometric relationships of the robot arm's segments and then initiates the movement.
     /// </summary>
     /// <param name="targetPosition">The target position for the end effector in the robot's local space.</param>
-    public async Task PerformIK(Vector3 targetPosition)
+    /// <param name="duration">Optional. The duration of the movement. If not provided, it's calculated based on the required joint rotation and ikAngularSpeed.</param>
+    public async Task PerformIK(Vector3 targetPosition, float duration = 0)
     {
         // Calculate the target position relative to the robot base.
         Vector3 A = targetPosition;
@@ -218,39 +226,44 @@ public class PickAndPlace : MonoBehaviour
         float theta1 = Mathf.Atan2(A.z, A.x);
         Debug.Log("Theta1: " + (theta1 * Mathf.Rad2Deg).ToString("F4"));
 
-        // Horizontal distance from the base to the target point.
+        // Horizontal distance from the base to the target point in the XZ plane.
         float AC = Mathf.Sqrt(A.x * A.x + A.z * A.z);
-        // Angle correction to account for the boom's pivot offset from the base center.
+        // Angle correction to account for the boom's pivot offset from the base's center.
         float theta3 = Mathf.Asin(AB / AC);
         Debug.Log("Theta3: " + (theta3 * Mathf.Rad2Deg).ToString("F4"));
 
-        // Corrected horizontal distance from the boom pivot to the target projection.
+        // Corrected horizontal distance from the boom pivot to the target's projection.
         float BC = AC * Mathf.Cos(theta3);
         Debug.Log("BC: " + BC.ToString("F4"));
 
-        // The final, corrected swing angle for the base.
+        // The final, corrected swing angle for the base articulation.
         float theta2 = theta1 - theta3;
         Debug.Log("Theta2: " + (theta2 * Mathf.Rad2Deg).ToString("F4"));
 
         // Vertical distance from the boom pivot to the wrist joint.
         float GF = _endEffectorSize - CD + A.y;
 
-        // The direct distance from the boom pivot to the wrist joint.
+        // The direct distance from the boom pivot to the wrist joint, forming a triangle with the boom and arm.
         float r = Mathf.Sqrt(BC * BC + GF * GF);
         Debug.Log("r: " + r.ToString("F4"));
 
         // Calculate internal angles of the arm triangle (boom, arm, r) using the Law of Cosines.
+        // theat6 is the angle at the wrist joint.
         float theat6 = Mathf.Acos((FE * FE - ED * ED - r * r) / (-2 * ED * r));
+        // theat7 is the angle at the arm joint (elbow).
         float theat7 = Mathf.Acos((r * r - FE * FE - ED * ED) / (-2 * FE * ED));
         Debug.Log("Theta6: " + (theat6 * Mathf.Rad2Deg).ToString("F4"));
         Debug.Log("Theta7: " + (theat7 * Mathf.Rad2Deg).ToString("F4"));
 
-        // Calculate the final angles for the boom and hand.
+        // Calculate the final angles for the boom and hand articulations.
+        // theat5 is the angle of the line 'r' with the horizontal plane.
         float theat5 = Mathf.Atan2(GF, BC);
+        // theat4 is the angle for the boom articulation.
         float theat4 = theat5 + theat6;
         Debug.Log("Theta4: " + (theat4 * Mathf.Rad2Deg).ToString("F4"));
         Debug.Log("Theta5: " + (theat5 * Mathf.Rad2Deg).ToString("F4"));
 
+        // Calculate the hand angle to keep the end effector level.
         float theat8 = 3 * Mathf.PI / 2 - theat4 - theat7;
         Debug.Log("Theta8: " + (theat8 * Mathf.Rad2Deg).ToString("F4"));
 
@@ -264,12 +277,30 @@ public class PickAndPlace : MonoBehaviour
         // Start the asynchronous movement task, allowing for cancellation.
         _ikMoveCts = new CancellationTokenSource();
 
+        float moveDuration = duration;
+        if (moveDuration <= 0 && ikAngularSpeed > 0)
+        {
+            // Calculate the duration based on the largest joint angle change required.
+            // This ensures a more consistent speed across different types of movements.
+            float swingStart = swingAb.xDrive.target;
+            float boomStart = boomAb.xDrive.target;
+            float armStart = armAb.xDrive.target;
+            float handStart = handAb.xDrive.target;
+
+            float maxAngleChange = 0f;
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theta2 * Mathf.Rad2Deg) - swingStart));
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theat4 * Mathf.Rad2Deg) - boomStart));
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theat7 * Mathf.Rad2Deg) - armStart));
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theat8 * Mathf.Rad2Deg) - handStart));
+            moveDuration = maxAngleChange / ikAngularSpeed;
+        }
+
         float swingTarget = -theta2 * Mathf.Rad2Deg;
         float boomTarget = -theat4 * Mathf.Rad2Deg;
         float armTarget = theat7 * Mathf.Rad2Deg;
         float handTarget = theat8 * Mathf.Rad2Deg;
 
-        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, ikMoveDuration, _ikMoveCts.Token);
+        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, moveDuration, _ikMoveCts.Token);
     }
 
     /// <summary>
@@ -333,7 +364,6 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="boomTarget">The target angle for the boom articulation in degrees.</param>
     /// <param name="armTarget">The target angle for the arm articulation in degrees.</param>
     /// <param name="handTarget">The target angle for the hand articulation in degrees.</param>
-    /// <param name="wristTarget">The target angle for the end effector in degrees.</param>
     /// <param name="duration">The time in seconds the movement should take.</param>
     /// <param name="cancellationToken">A token to allow for cancellation of the movement task.</param>
     private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float duration, CancellationToken cancellationToken)
@@ -355,6 +385,13 @@ public class PickAndPlace : MonoBehaviour
 
                 // Smoothly interpolate articulation angles.
                 float t = elapsedTime / duration;
+                // Use SmoothStep to create an ease-in and ease-out effect for a more industrial feel.
+                if (useEaseinEaseout)
+                {
+                    // The SmoothStep function provides a smooth interpolation between 0 and 1.
+                    t = Mathf.SmoothStep(0f, 1f, t);
+                }
+
                 float swingRotation = Mathf.Lerp(swingStart, swingTarget, t);
                 SetArticulationTarget(swingAb, swingRotation);
                 SetArticulationTarget(boomAb, Mathf.Lerp(boomStart, boomTarget, t));
