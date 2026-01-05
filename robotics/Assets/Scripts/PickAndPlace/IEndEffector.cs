@@ -1,48 +1,60 @@
 using System.Threading.Tasks;
+using UnityEngine;
 
 /// <summary>
-/// Defines the basic properties of a robot's end effector.
+/// Defines the basic properties of a robot's end effector. This interface provides essential
+/// information for positioning and interacting with the end effector in a simulated environment.
 /// </summary>
 public interface IEndEffector
 {
     /// <summary>
-    /// Gets the size of the end effector in meters. This is used for Inverse Kinematics calculations.
+    /// Gets the characteristic size of the end effector in meters. This value is crucial
+    /// for accurate Inverse Kinematics (IK) calculations to position the end effector correctly.
+    /// For a gripper, this is typically the length from the wrist joint to the gripping point.
     /// </summary>
     float EndEffectorSize { get; }
 
     /// <summary>
-    /// Gets the current target position of the end effector's primary drive.
+    /// Gets the Transform of the edge of the end effector, which represents the precise
+    /// point of interaction (e.g., the tip of the gripper fingers).
+    /// </summary>
+    Transform EndEffectorEdgeTransform { get; }
+
+    /// <summary>
+    /// Gets the current target position of the end effector's primary drive. For a gripper,
+    /// this might represent the target separation of the fingers.
     /// </summary>
     float CurrentDriveTarget { get; }
 }
 
 /// <summary>
 /// Extends the <see cref="IEndEffector"/> interface with gripper-specific functionality,
-/// including force sensing and open/close commands.
+/// including force sensing and asynchronous open/close commands. This allows for more
+/// detailed control and feedback from a parallel gripper mechanism.
 /// </summary>
 public interface IGripper : IEndEffector
 {
     /// <summary>
-    /// Gets the force currently being applied by the left finger's pressure sensor.
+    /// Gets the force currently being applied by the left finger's pressure sensor, in Newtons.
     /// </summary>
     float LeftFingerForce { get; }
     /// <summary>
-    /// Gets the force currently being applied by the right finger's pressure sensor.
+    /// Gets the force currently being applied by the right finger's pressure sensor, in Newtons.
     /// </summary>
     float RightFingerForce { get; }
 
     /// <summary>
-    /// Asynchronously opens the gripper.
+    /// Asynchronously commands the gripper to open.
     /// </summary>
-    /// <param name="targetAngularVelocity">The speed at which to open the gripper.</param>
+    /// <param name="targetAngularVelocity">The angular velocity at which the gripper fingers should open.</param>
     /// <returns>A task that completes when the gripper is fully open.</returns>
     Task Open(float targetAngularVelocity);
 
     /// <summary>
-    /// Asynchronously closes the gripper with a specified target force.
+    /// Asynchronously commands the gripper to close, applying a specified target force.
     /// </summary>
-    /// <param name="targetForce">The desired force to apply upon gripping an object. If 0, it will close until it hits the limit.</param>
-    /// <param name="targetAngularVelocity">The speed at which to close the gripper.</param>
-    /// <returns>A task that completes when the gripper has made contact with an object or has fully closed.</returns>
+    /// <param name="targetForce">The desired force in Newtons to apply when gripping an object. If set to 0, the gripper will close completely until it reaches its physical limit.</param>
+    /// <param name="targetAngularVelocity">The angular velocity at which the gripper fingers should close.</param>
+    /// <returns>A task that completes when the gripper has either made contact with an object and achieved the target force, or has fully closed.</returns>
     Task Close(float targetForce, float targetAngularVelocity);
 }

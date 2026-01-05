@@ -10,8 +10,10 @@ public class CameraCapture : MonoBehaviour
 {
     [Tooltip("The camera to capture the image from. If not set, it will default to the main camera.")]
     [SerializeField] private Camera captureCamera;
-    private int imageWidth;
-    private int imageHeight;
+    public int ImageWidth => _imageWidth;
+    public int ImageHeight => _imageHeight;
+    private int _imageWidth;
+    private int _imageHeight;
 
     [Tooltip("A UI RawImage component to display the captured image. This is optional.")]
     [SerializeField] RawImage outputRawImage;
@@ -49,8 +51,8 @@ public class CameraCapture : MonoBehaviour
         }
         else
         {
-            imageWidth = captureCamera.pixelWidth;
-            imageHeight = captureCamera.pixelHeight;
+            _imageWidth = captureCamera.pixelWidth;
+            _imageHeight = captureCamera.pixelHeight;
 
             fovVertical = captureCamera.fieldOfView;
             fovHorizontal = 2f * Mathf.Atan(Mathf.Tan(fovVertical * Mathf.Deg2Rad / 2f) * captureCamera.aspect) * Mathf.Rad2Deg;
@@ -70,10 +72,10 @@ public class CameraCapture : MonoBehaviour
 
             // Debugging
             Debug.Log($"[Projection] H: {H}, L_cam: {L_cam}, Theta: {theta}");
-            Debug.Log("[Projection] Image Dimensions: " + imageWidth + "x" + imageHeight);
+            Debug.Log("[Projection] Image Dimensions: " + ImageWidth + "x" + ImageHeight);
             Debug.Log("[Projection] FOV H: " + fovHorizontal.ToString("F4") + ", V: " + fovVertical.ToString("F4"));
             Debug.Log("[Projection] Camera H: " + H.ToString("F4") + ", L_cam: " + L_cam.ToString("F4") + ", Theta: " + theta.ToString("F4"));
-            Vector3 worldPos = ProjectToWorld(debug_u, debug_v);
+            Vector3 worldPos = ProjectToWorkAreaLocal(debug_u, debug_v);
             Debug.Log($"[Projection] Debug Projection - u: {debug_u}, v: {debug_v} => World Position: {worldPos}");
         }
     }
@@ -85,7 +87,7 @@ public class CameraCapture : MonoBehaviour
     public string CaptureAsBase64()
     {
         // Render the camera's view to a temporary RenderTexture.
-        RenderTexture renderTexture = RenderTexture.GetTemporary(imageWidth, imageHeight, 24);
+        RenderTexture renderTexture = RenderTexture.GetTemporary(ImageWidth, ImageHeight, 24);
 
         var previousTargetTexture = captureCamera.targetTexture;
         captureCamera.targetTexture = renderTexture;
@@ -95,9 +97,9 @@ public class CameraCapture : MonoBehaviour
         RenderTexture.active = renderTexture;
 
         // Read the pixels from the RenderTexture into a new Texture2D.
-        Texture2D capturedImage = new Texture2D(imageWidth, imageHeight, TextureFormat.RGB24, false);
+        Texture2D capturedImage = new Texture2D(ImageWidth, ImageHeight, TextureFormat.RGB24, false);
 
-        capturedImage.ReadPixels(new Rect(0, 0, imageWidth, imageHeight), 0, 0);
+        capturedImage.ReadPixels(new Rect(0, 0, ImageWidth, ImageHeight), 0, 0);
         capturedImage.Apply();
 
         // Restore the camera's target texture and release the temporary RenderTexture.
@@ -140,15 +142,14 @@ public class CameraCapture : MonoBehaviour
     /// </summary>
     /// <param name="u">OpenCV X (0 to Width)</param>
     /// <param name="v">OpenCV Y (0 to Height)</param>
-    /// <returns>Unity World Position (X, 0, Z)</returns>
-    public Vector3 ProjectToWorld(float u, float v)
+    /// <returns>Unity Workarea Local Position (X, 0, Z)</returns>
+    public Vector3 ProjectToWorkAreaLocal(float u, float v)
     {
-        float u_prime = u - imageWidth * 0.5f;
-        float v_prime = imageHeight * 0.5f - v;
+        float u_prime = u - ImageWidth * 0.5f;
+        float v_prime = ImageHeight * 0.5f - v;
 
-        float alpha = Mathf.Atan((v_prime / (imageHeight * 0.5f)) * Mathf.Tan(fovVertical * 0.5f * Mathf.Deg2Rad));
-        float beta = Mathf.Atan((u_prime / (imageWidth * 0.5f)) * Mathf.Tan(fovHorizontal * 0.5f * Mathf.Deg2Rad));
-
+        float alpha = Mathf.Atan((v_prime / (ImageHeight * 0.5f)) * Mathf.Tan(fovVertical * 0.5f * Mathf.Deg2Rad));
+        float beta = Mathf.Atan((u_prime / (ImageWidth * 0.5f)) * Mathf.Tan(fovHorizontal * 0.5f * Mathf.Deg2Rad));
         float gamma = (theta * Mathf.Deg2Rad) + alpha;
 
         if (gamma <= 0.001f) return new Vector3(0, -999, 0);

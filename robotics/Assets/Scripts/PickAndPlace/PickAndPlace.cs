@@ -1,26 +1,30 @@
 using UnityEngine;
 using System.Threading;
 using System.Threading.Tasks;
-using Vector3 = UnityEngine.Vector3;
 using UnityEngine.UI;
+using System.Collections.Generic;
+using System.Linq;
 
 /// <summary>
-/// This class implements inverse kinematics (IK) for a 6-axis robot arm to pick and place objects.
-/// It calculates the required joint angles to reach a target position and orientation,
-/// and then animates the robot's movement to the calculated pose. It also integrates with
-/// a camera and a generative AI model to detect objects in the scene.
+/// This class implements inverse kinematics (IK) for a 6-axis robot arm, enabling it to pick and place objects.
+/// It calculates the necessary joint angles to reach a target position and orientation, then animates the robot's
+/// movement to the calculated pose. The class also integrates with a camera and the Gemini API to detect
+/// objects in the scene, allowing for dynamic interaction with the environment. It supports a test mode for IK
+/// validation and provides UI controls for triggering detection and pick-and-place operations.
 /// </summary>
 public class PickAndPlace : MonoBehaviour
 {
     // --- Fields ---
 
     [Header("IK Test Mode")]
+    [Tooltip("If true, the robot will perform a pre-defined pick-and-place sequence for testing purposes.")]
     [SerializeField] bool ikTestMode = false;
 
+    [Tooltip("The target GameObject where the robot arm will place the picked object.")]
     [Header("Placement Target")]
     [SerializeField] GameObject placeTarget;
 
-    // The target GameObject that the robot arm's end effector will attempt to reach.
+    [Tooltip("The target GameObject that the robot arm's end effector will attempt to reach in test mode.")]
     [Header("IK Target")]
     [SerializeField] GameObject work;
 
@@ -28,11 +32,13 @@ public class PickAndPlace : MonoBehaviour
     [Header("IK Settings")]
     [Tooltip("The angular speed of the fastest joint in degrees per second during an IK movement.")]
     [SerializeField] private float ikAngularSpeed = 60.0f;
+
     [Tooltip("Whether to use Ease-in/Ease-out interpolation for smoother movement.")]
     [SerializeField] bool useEaseinEaseout = true;
 
-    [Header("Robot Base")]
-    [SerializeField] GameObject robotBase;
+    [Tooltip("The workarea")]
+    [Header("Work Area")]
+    [SerializeField] GameObject workArea;
 
     // GameObjects representing the robot's articulations.
     [Header("Robot Articulations")]
@@ -42,34 +48,52 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] GameObject hand;
     [SerializeField] GameObject wrist;
 
+    [Tooltip("The end effector (gripper) of the robot arm.")]
     [Header("End Effector")]
     [SerializeField] GameObject endEffector;
+
+    [Tooltip("If true, the wrist will attempt to stay parallel to the table.")]
     [SerializeField] bool isAlignedToTable = true;
+
+    [Tooltip("The force applied by the gripper when closing.")]
     [SerializeField] float targetForce = 3.0f;
+
+    [Tooltip("The angular velocity of the gripper when opening or closing.")]
     [SerializeField] float targetAngularVelocity = 30.0f;
 
+    // UI elements for displaying coordinates.
     [Header("Coordinate Display")]
-    [SerializeField] Coordinate coordinateFinger;
+    [SerializeField] Coordinate coordinateEndEffector;
     [SerializeField] Coordinate coordinatePick;
     [SerializeField] Coordinate coordinatePlace;
 
+    private Transform _endEffectorEdgeTransform;
+
+    // UI buttons for triggering robot actions.
     [Header("Operation buttons")]
     [SerializeField] Button buttonDetect;
-    [SerializeField] Button buttonPick;
-    [SerializeField] Button buttonPlace;
+    [SerializeField] Button buttonPickAndPlace;
     [SerializeField] Button buttonReset;
 
+    [Tooltip("The label of the object to be detected and picked up.")]
     [Header("Detection target")]
     [SerializeField] string detectionTargetLabel = "cube";
 
+    // References to other components used for detection and display.
     [Header("Components")]
     [SerializeField] private CameraCapture cameraCapture;
     [SerializeField] private DetectedPoints detectedPoints;
-    private GeminiRoboticsApi geminiRoboticsApi;
+
+    // API for interacting with the Gemini Robotics service.
+    private GeminiRoboticsApi geminiRoboticsApi; // API for interacting with the Gemini vision and language models.
+
+    // A collection to store the workpieces detected by the vision system.
+    private IEnumerable<DetectedObject> detectedWorkpieces;
 
     // Used to cancel the in-progress asynchronous movement task.
     private CancellationTokenSource _ikMoveCts;
 
+    // Cached ArticulationBody components for each joint.
     private ArticulationBody swingAb;
     private ArticulationBody boomAb;
     private ArticulationBody armAb;
@@ -82,6 +106,8 @@ public class PickAndPlace : MonoBehaviour
     private float _endEffectorSize = 0f;
     const float FE = 0.49727f;
     const float ED = 0.70142f;
+
+    // --- Unity Lifecycle Methods ---
 
     /// <summary>
     /// Initializes the robot arm by caching its ArticulationBody components, setting an initial pose,
@@ -99,6 +125,8 @@ public class PickAndPlace : MonoBehaviour
         // Get the end effector size from the ParallelGripper component.
         _endEffectorSize = endEffector.GetComponent<IEndEffector>().EndEffectorSize;
         Debug.Log("End Effector Size: " + _endEffectorSize);
+
+        _endEffectorEdgeTransform = endEffector.GetComponent<IEndEffector>().EndEffectorEdgeTransform;
 
         try
         {
@@ -121,39 +149,17 @@ public class PickAndPlace : MonoBehaviour
 
         // Add a listener to the detect button to trigger the object detection process.
         buttonDetect.onClick.AddListener(OnDetectButtonClicked);
-    }
+        buttonPickAndPlace.onClick.AddListener(OnPickAndPlaceButtonClicked);
 
-    /// <summary>
-    /// Runs a pre-defined sequence of movements to test the inverse kinematics and gripper functionality.
-    /// </summary>
-    private async Task TestIKSequence() 
-    {
-        await Task.Delay(2000);
-        await PerformIK(work.transform.localPosition + new Vector3(0f, 0.4f, 0f));
-        await Task.Delay(1000);
-        await PerformIK(work.transform.localPosition);
-        await Task.Delay(1000);
-        await Close(targetForce, targetAngularVelocity);
-        await Task.Delay(1000);
-        await PerformIK(work.transform.localPosition + new Vector3(0f, 0.4f, 0f));
-        await Task.Delay(1000);
-        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.4f, 0f));
-        await Task.Delay(1000);
-        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.15f, 0f));
-        await Task.Delay(1000);
-        await Open(targetAngularVelocity);
-        await Task.Delay(1000);
-        await PerformIK(placeTarget.transform.localPosition + new Vector3(0f, 0.4f, 0f));
-        await Task.Delay(1000);
     }
-
+    
     /// <summary>
     /// Called every frame. Updates the UI to display the current coordinates of the end effector (wrist).
     /// </summary>
     void Update()
     {
-        Vector3 fingerPos = robotBase.transform.InverseTransformPoint(wrist.transform.position);
-        coordinateFinger.UpdatePositionText(fingerPos);
+        // Get the current position of the wrist relative to the robot base and update the UI display.
+        coordinateEndEffector.UpdatePositionText(workArea.transform.InverseTransformPoint(_endEffectorEdgeTransform.position));
     }
 
     /// <summary>
@@ -176,39 +182,7 @@ public class PickAndPlace : MonoBehaviour
         _ikMoveCts?.Dispose();
     }
 
-    /// <summary>
-    /// Handles the click event from the "Detect" button. This function captures an image from the
-    /// scene's camera, sends it to the Gemini API for object detection, and then displays the
-    /// results on the UI.
-    /// </summary>
-    private async void OnDetectButtonClicked()
-    {
-        if (cameraCapture == null || geminiRoboticsApi == null)
-        {
-            Debug.LogError("CameraCapture or GeminiRoboticsApi is not assigned.");
-            return;
-        }
-
-        // Capture the image from the camera as a base64 string.
-        string b64Image = cameraCapture.CaptureAsBase64();
-
-        // Send the image to the Gemini API and wait for the detected objects.
-        var objectObjects = await geminiRoboticsApi.DetectObjects(b64Image);
-
-        // Log the detected objects to the console.
-        Debug.Log($"Detected {objectObjects.Length} objects.");
-
-        // Clear previous detections and display the new ones.
-        detectedPoints.clear();
-
-        // Display each detected object and log its details.
-        foreach (var obj in objectObjects)
-        {
-            Debug.Log($"- Label: {obj.label}, Point: ({obj.point.x}, {obj.point.y})");
-            // Display the detected object on the UI.
-            detectedPoints.displayDetectionPosition(obj);
-        }
-    }
+    // --- Public Methods ---
 
     /// <summary>
     /// Performs inverse kinematics (IK) to calculate the required joint angles for the robot arm
@@ -216,14 +190,18 @@ public class PickAndPlace : MonoBehaviour
     /// based on the geometric relationships of the robot arm's segments and then initiates the movement.
     /// </summary>
     /// <param name="targetPosition">The target position for the end effector in the robot's local space.</param>
-    /// <param name="duration">Optional. The duration of the movement. If not provided, it's calculated based on the required joint rotation and ikAngularSpeed.</param>
-    public async Task PerformIK(Vector3 targetPosition, float duration = 0)
+    /// <param name="duration">Optional. The duration of the movement in seconds. If not provided, it's calculated based on the required joint rotation and ikAngularSpeed.</param>
+    /// <param name="delay">Optional delay in milliseconds before the movement starts.</param>
+    public async Task PerformIK(Vector3 targetPosition, float duration = 0, int delay = 1000)
     {
+        // Introduce a delay before starting the IK calculation and movement.
+        await Task.Delay(delay);
+
         // Calculate the target position relative to the robot base.
         Vector3 A = targetPosition;
         Debug.Log("Work position: " + A.ToString("F4"));
 
-        // --- 2D Planar Inverse Kinematics Calculation ---
+        // --- 2D Planar Inverse Kinematics Calculation --- //
 
         // theta1 is the base swing angle around the Y-axis.
         float theta1 = Mathf.Atan2(A.z, A.x);
@@ -251,24 +229,24 @@ public class PickAndPlace : MonoBehaviour
         Debug.Log("r: " + r.ToString("F4"));
 
         // Calculate internal angles of the arm triangle (boom, arm, r) using the Law of Cosines.
-        // theat6 is the angle at the wrist joint.
-        float theat6 = Mathf.Acos((FE * FE - ED * ED - r * r) / (-2 * ED * r));
-        // theat7 is the angle at the arm joint (elbow).
-        float theat7 = Mathf.Acos((r * r - FE * FE - ED * ED) / (-2 * FE * ED));
-        Debug.Log("Theta6: " + (theat6 * Mathf.Rad2Deg).ToString("F4"));
-        Debug.Log("Theta7: " + (theat7 * Mathf.Rad2Deg).ToString("F4"));
+        // theta6 is the angle at the wrist joint.
+        float theta6 = Mathf.Acos((FE * FE - ED * ED - r * r) / (-2 * ED * r));
+        // theta7 is the angle at the arm joint (elbow).
+        float theta7 = Mathf.Acos((r * r - FE * FE - ED * ED) / (-2 * FE * ED));
+        Debug.Log("Theta6: " + (theta6 * Mathf.Rad2Deg).ToString("F4"));
+        Debug.Log("Theta7: " + (theta7 * Mathf.Rad2Deg).ToString("F4"));
 
         // Calculate the final angles for the boom and hand articulations.
-        // theat5 is the angle of the line 'r' with the horizontal plane.
-        float theat5 = Mathf.Atan2(GF, BC);
-        // theat4 is the angle for the boom articulation.
-        float theat4 = theat5 + theat6;
-        Debug.Log("Theta4: " + (theat4 * Mathf.Rad2Deg).ToString("F4"));
-        Debug.Log("Theta5: " + (theat5 * Mathf.Rad2Deg).ToString("F4"));
+        // theta5 is the angle of the line 'r' with the horizontal plane.
+        float theta5 = Mathf.Atan2(GF, BC);
+        // theta4 is the angle for the boom articulation.
+        float theta4 = theta5 + theta6;
+        Debug.Log("Theta4: " + (theta4 * Mathf.Rad2Deg).ToString("F4"));
+        Debug.Log("Theta5: " + (theta5 * Mathf.Rad2Deg).ToString("F4"));
 
         // Calculate the hand angle to keep the end effector level.
-        float theat8 = 3 * Mathf.PI / 2 - theat4 - theat7;
-        Debug.Log("Theta8: " + (theat8 * Mathf.Rad2Deg).ToString("F4"));
+        float theta8 = 3 * Mathf.PI / 2 - theta4 - theta7;
+        Debug.Log("Theta8: " + (theta8 * Mathf.Rad2Deg).ToString("F4"));
 
         // Cancel any existing movement task before starting a new one.
         if (_ikMoveCts != null)
@@ -292,18 +270,32 @@ public class PickAndPlace : MonoBehaviour
 
             float maxAngleChange = 0f;
             maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theta2 * Mathf.Rad2Deg) - swingStart));
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theat4 * Mathf.Rad2Deg) - boomStart));
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theat7 * Mathf.Rad2Deg) - armStart));
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theat8 * Mathf.Rad2Deg) - handStart));
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theta4 * Mathf.Rad2Deg) - boomStart));
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theta7 * Mathf.Rad2Deg) - armStart));
+            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theta8 * Mathf.Rad2Deg) - handStart));
             moveDuration = maxAngleChange / ikAngularSpeed;
         }
 
         float swingTarget = -theta2 * Mathf.Rad2Deg;
-        float boomTarget = -theat4 * Mathf.Rad2Deg;
-        float armTarget = theat7 * Mathf.Rad2Deg;
-        float handTarget = theat8 * Mathf.Rad2Deg;
+        float boomTarget = -theta4 * Mathf.Rad2Deg;
+        float armTarget = theta7 * Mathf.Rad2Deg;
+        float handTarget = theta8 * Mathf.Rad2Deg;
 
         await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, moveDuration, _ikMoveCts.Token);
+    }
+
+    /// <summary>
+    /// Commands the gripper to open at a specified angular velocity.
+    /// </summary>
+    /// <param name="angularVelocity">The speed at which the gripper should open.</param>
+    /// <param name="delay">Optional delay in milliseconds before opening.</param>
+    public async Task Open(float angularVelocity, int delay = 1000)
+    {
+        // Ensure the end effector is assigned before attempting to open.
+        if (endEffector == null) return;
+        // Introduce a delay before opening the gripper.
+        await Task.Delay(delay);
+        await endEffector.GetComponent<IGripper>().Open(angularVelocity);
     }
 
     /// <summary>
@@ -311,20 +303,139 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     /// <param name="targetForce">The desired force in Newtons to apply when gripping.</param>
     /// <param name="angularVelocity">The speed at which the gripper should close.</param>
-    public async Task Close(float targetForce, float angularVelocity)
+    /// <param name="delay">Optional delay in milliseconds before closing.</param>
+    public async Task Close(float targetForce, float angularVelocity, int delay = 1000)
     {
+        // Ensure the end effector is assigned before attempting to close.
         if (endEffector == null) return;
+        // Introduce a delay before closing the gripper.
+        await Task.Delay(delay);
         await endEffector.GetComponent<IGripper>().Close(targetForce, angularVelocity);
     }
 
+    // --- UI Event Handlers ---
+
     /// <summary>
-    /// Commands the gripper to open at a specified angular velocity.
+    /// Handles the click event from the "Detect" button. This function captures an image from the
+    /// scene's camera, sends it to the Gemini API for object detection, and then displays the
+    /// results on the UI.
     /// </summary>
-    /// <param name="angularVelocity">The speed at which the gripper should open.</param>
-    public async Task Open(float angularVelocity)
+    private async void OnDetectButtonClicked()
     {
-        if (endEffector == null) return;
-        await endEffector.GetComponent<IGripper>().Open(angularVelocity);
+        // Ensure required components are assigned.
+        if (cameraCapture == null || geminiRoboticsApi == null)
+        {
+            Debug.LogError("CameraCapture or GeminiRoboticsApi is not assigned.");
+            return;
+        }
+
+        // Capture the image from the camera as a base64 string.
+        string b64Image = cameraCapture.CaptureAsBase64();
+
+        // Send the image to the Gemini API and wait for the detected objects.
+        var objectObjects = await geminiRoboticsApi.DetectObjects(b64Image);
+
+        // Log the detected objects to the console.
+        Debug.Log($"Detected {objectObjects.Length} objects.");
+
+        // Clear previous detections and display the new ones.
+        detectedPoints.clear();
+
+        // Display each detected object and log its details.
+        foreach (var obj in objectObjects)
+        {
+            Debug.Log($"- Label: {obj.label}, Point: ({obj.point.x}, {obj.point.y})");
+            // Display the detected object on the UI.
+            detectedPoints.displayDetectionPosition(obj);
+        }
+
+        // Find the target object and store it.
+        if (detectedPoints.TryGetDetectedObjects(detectionTargetLabel, out detectedWorkpieces))
+        {
+            Debug.Log($"Found target workpiece: {detectedWorkpieces.First().label} at ({detectedWorkpieces.First().point.x}, {detectedWorkpieces.First().point.y})");
+        }
+        else
+        {
+            Debug.LogWarning($"Target workpiece with label '{detectionTargetLabel}' not found.");
+        }
+    }
+
+    /// <summary>
+    /// Handles the click event for the "Pick and Place" button. It iterates through the
+    /// detected workpieces and initiates the pick-and-place sequence for each one.
+    /// </summary>
+    private async void OnPickAndPlaceButtonClicked()
+    {
+        // Check if there are any detected workpieces to process.
+        if (detectedWorkpieces != null && detectedWorkpieces.Any())
+        {
+            // Iterate through each detected object.
+            foreach (var obj in detectedWorkpieces)
+            {   
+                Debug.Log($"Workpiece: {obj.label} at ({obj.point.x}, {obj.point.y})");
+                // Convert normalized 0-1000 coordinates to pixel coordinates.
+                float u = obj.point.x / 1000f * cameraCapture.ImageWidth;
+                float v = obj.point.y / 1000f * cameraCapture.ImageHeight;
+
+                // Project the 2D pixel coordinates to a 3D position in the robot's work area.
+                Vector3 workpiecePos = cameraCapture.ProjectToWorkAreaLocal(u, v);
+                Debug.Log($"[PickAndPlace] World Position of detected object '{obj.label}': {workpiecePos}");
+                // Start the pick-and-place sequence for the current object.
+                await pickAndPlace(workpiecePos, placeTarget.transform.localPosition);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No detected workpieces to pick and place.");
+        }
+    }
+
+    /// <summary>
+    /// Runs a pre-defined sequence of movements to test the inverse kinematics and gripper functionality.
+    /// </summary>
+    private async Task TestIKSequence()
+    {
+        await pickAndPlace(work.transform.localPosition, placeTarget.transform.localPosition);
+    }
+
+    /// <summary>
+    /// Executes a full pick-and-place sequence for a single object, moving from a pick position to a place position.
+    /// </summary>
+    /// <param name="pickPos">The position where the object will be picked from.</param>
+    /// <param name="placePos">The position where the object will be placed.</param>
+    private async Task pickAndPlace(Vector3 pickPos, Vector3 placePos)
+    {
+        // 2. Move above the object.
+        Vector3 pickPositionAbove = new Vector3(pickPos.x, pickPos.y + 0.2f, pickPos.z);
+        await PerformIK(pickPositionAbove);
+
+        // 3. Move down to the object.
+        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y + 0.02f, pickPos.z);
+        await PerformIK(pickPositionAt);
+
+        // 4. Close the gripper to pick up the object.
+        await Close(targetForce, targetAngularVelocity);
+
+        coordinatePick.UpdatePositionText(_endEffectorEdgeTransform.position);
+
+        // 5. Move back up with the object.
+        Vector3 pickPositionLift = new Vector3(pickPos.x, pickPos.y + 0.4f, pickPos.z);
+        await PerformIK(pickPositionLift);
+
+        Vector3 placePositionLift = new Vector3(placePos.x, placePos.y + 0.4f, placePos.z);
+        await PerformIK(placePositionLift);
+
+        // 6. Move to the place target above position.
+        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z);
+        await PerformIK(placePositionAbove);
+
+        // 8. Open the gripper to release the object.
+        await Open(targetAngularVelocity);
+
+        coordinatePlace.UpdatePositionText(_endEffectorEdgeTransform.position);
+
+        // 9. Move back up from the place position.
+        await PerformIK(placePositionLift);
     }
 
     /// <summary>
@@ -336,27 +447,18 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="armAngle">The angle for the arm articulation in radians.</param>
     /// <param name="handAngle">The angle for the hand articulation in radians.</param>
     /// <param name="wristAngle">The angle for the wrist articulation in radians.</param>
-    async Task setPose(float swingAngle, float boomAngle, float armAngle, float handAngle, float wristAngle)
+    private async Task setPose(float swingAngle, float boomAngle, float armAngle, float handAngle, float wristAngle)
     {
+        // Set the target angle for each articulation body, converting from radians to degrees.
         SetArticulationTarget(swingAb, -swingAngle * Mathf.Rad2Deg);
         SetArticulationTarget(boomAb, -boomAngle * Mathf.Rad2Deg);
         SetArticulationTarget(armAb, armAngle * Mathf.Rad2Deg);
         SetArticulationTarget(handAb, handAngle * Mathf.Rad2Deg);
         SetArticulationTarget(wristAb, -wristAngle * Mathf.Rad2Deg);
+        // Wait for a short period to allow the joints to settle.
         await Task.Delay(100);
+        // Open the gripper.
         await Open(100f);
-    }
-
-    /// <summary>
-    /// A helper function to set the target position for a given articulation body's primary drive (xDrive).
-    /// </summary>
-    /// <param name="articulation">The articulation body to update.</param>
-    /// <param name="target">The target position in degrees.</param>
-    void SetArticulationTarget(ArticulationBody articulation, float target)
-    {
-        var drive = articulation.xDrive;
-        drive.target = target;
-        articulation.xDrive = drive;
     }
 
     /// <summary>
@@ -377,6 +479,7 @@ public class PickAndPlace : MonoBehaviour
         float armStart = armAb.xDrive.target;
         float handStart = handAb.xDrive.target;
 
+        // Keep track of the time elapsed during the movement.
         float elapsedTime = 0f;
 
         try
@@ -384,6 +487,7 @@ public class PickAndPlace : MonoBehaviour
             // Loop until the elapsed time reaches the specified duration.
             while (elapsedTime < duration)
             {
+                // Check if the task has been cancelled.
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Smoothly interpolate articulation angles.
@@ -395,11 +499,13 @@ public class PickAndPlace : MonoBehaviour
                     t = Mathf.SmoothStep(0f, 1f, t);
                 }
 
+                // Calculate the interpolated angle for each joint.
                 float swingRotation = Mathf.Lerp(swingStart, swingTarget, t);
                 SetArticulationTarget(swingAb, swingRotation);
                 SetArticulationTarget(boomAb, Mathf.Lerp(boomStart, boomTarget, t));
                 SetArticulationTarget(armAb, Mathf.Lerp(armStart, armTarget, t));
                 SetArticulationTarget(handAb, Mathf.Lerp(handStart, handTarget, t));
+                // Adjust the wrist to keep it aligned (e.g., parallel to the table).
                 SetArticulationTarget(wristAb, isAlignedToTable ? swingRotation - 90 : swingRotation);
 
                 elapsedTime += Time.deltaTime;
@@ -418,5 +524,20 @@ public class PickAndPlace : MonoBehaviour
         {
             // Gracefully handle task cancellation (e.g., if a new movement command interrupts this one).
         }
+    }
+
+    // --- Private Helper Methods ---
+
+    /// <summary>
+    /// A helper function to set the target position for a given articulation body's primary drive (xDrive).
+    /// </summary>
+    /// <param name="articulation">The articulation body to update.</param>
+    /// <param name="target">The target position in degrees.</param>
+    void SetArticulationTarget(ArticulationBody articulation, float target)
+    {
+        // Get the current drive settings.
+        var drive = articulation.xDrive;
+        drive.target = target;
+        articulation.xDrive = drive;
     }
 }

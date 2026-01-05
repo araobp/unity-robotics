@@ -2,9 +2,9 @@ using UnityEngine;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Implements the <see cref="IGripper"/> and <see cref="IEndEffector"/> interfaces to control
-/// a parallel gripper mechanism using ArticulationBody components. This script provides
-/// asynchronous opening and closing functionality with integrated force control feedback.
+/// Implements the <see cref="IGripper"/> and <see cref="IEndEffector"/> interfaces to control a parallel gripper
+/// mechanism using ArticulationBody components. This script manages the gripper's state (opening, closing, holding)
+/// and provides asynchronous methods to command these actions, with integrated force control feedback for gripping objects.
 /// </summary>
 public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
 {
@@ -43,12 +43,14 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// </summary>
     private Collider _plateColliderL;
 
-    // Original physics materials for the plates
+    // Cached original physics materials for the gripper plates.
     private PhysicsMaterial _originalPlateMaterialR;
     private PhysicsMaterial _originalPlateMaterialL;
 
-    // A physics material with high friction to apply when holding an object.
+    // A dynamically created physics material with high friction, applied to the gripper plates when holding an object to ensure a stable grip.
     private PhysicsMaterial _strongFrictionMaterial;
+
+    // --- Sensor Components ---
     /// <summary>
     /// The pressure sensor on the right finger, used to detect contact and measure applied force.
     /// </summary>
@@ -57,6 +59,8 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// The pressure sensor on the left finger, used to detect contact and measure applied force.
     /// </summary>
     private PressureSensor _pressureSensorL;
+
+    // --- Gripper Joint Limits ---
 
     /// <summary>
     /// The lower limit of the gripper's primary joint drive, representing the fully open state.
@@ -82,6 +86,11 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     [SerializeField] private bool useHighFrictionWhenHolding = true;
     [Tooltip("The friction value to use for the high-friction material when holding an object.")]
     [SerializeField] private float highFrictionValue = 5f;
+
+    /// <summary>
+    /// The transform representing the precise point of interaction for the end effector.
+    /// </summary>
+    private Transform _endEffectorEdgeTransform;
 
 
     // --- State variables ---
@@ -122,9 +131,15 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     public float EndEffectorSize => 0.392f;
 
     /// <summary>
+    /// Gets the Transform of the edge of the end effector, which represents the precise
+    /// point of interaction (e.g., the tip of the gripper fingers).
+    /// </summary>
+    public Transform EndEffectorEdgeTransform => _endEffectorEdgeTransform;
+
+    /// <summary>
     /// Gets the current target position of the gripper's master joint drive.
-    /// The private setter applies this target value to all individual finger articulation bodies,
-    /// correctly handling the opposing motion required for a parallel gripper and applying a compliance gap when in a holding state.
+    /// The private setter applies this target value to all individual finger articulation bodies.
+    /// It correctly handles the opposing motion required for a parallel gripper and applies a compliance gap when in a holding state.
     /// </summary>
     public float CurrentDriveTarget
     {
@@ -132,11 +147,11 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         private set
         {
             bool applyGap = _isHolding;
-            // The right side moves in the positive direction to close the gripper.
+            // Both sides move towards the same target value. The ArticulationBody's local transform handles the opposing motion.
             SetDriveProperties(_fingerR, value, applyGap);
             SetDriveProperties(_plateR, value, applyGap);
             SetDriveProperties(_fingerR2, value, applyGap);
-            // The left side moves in the positive direction to close the gripper.
+
             SetDriveProperties(_fingerL, value, applyGap);
             SetDriveProperties(_plateL, value, applyGap);
             SetDriveProperties(_fingerL2, value, applyGap);
@@ -145,20 +160,20 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     }
 
     /// <summary>
-    /// Gets the last force value read from the left finger's pressure sensor.
+    /// Gets the last force value read from the left finger's pressure sensor, in Newtons.
     /// </summary>
     public float LeftFingerForce => _pressureSensorL.LastForce;
     /// <summary>
-    /// Gets the last force value read from the right finger's pressure sensor.
+    /// Gets the last force value read from the right finger's pressure sensor, in Newtons.
     /// </summary>
     public float RightFingerForce => _pressureSensorR.LastForce;
-
 
     /// <summary>
     /// Initializes component references and gripper joint limits upon startup.
     /// </summary>
     private void Start()
-    {        
+    {
+        _endEffectorEdgeTransform = transform.Find("Palm/EndEffectorEdge");
         _fingerR = transform.Find("Palm/J1R/FingerR").GetComponent<ArticulationBody>();
         _plateR = transform.Find("Palm/J1R/FingerR/J2R/PlateR").GetComponent<ArticulationBody>();
         _fingerR2 = transform.Find("Palm/J1R/FingerR/J2R/PlateR/J3R/Finger2R").GetComponent<ArticulationBody>();
@@ -196,7 +211,10 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     }
 
     /// <summary>
-    /// Handles the physics-based movement and force application of the gripper on a fixed timestep.
+    /// Manages the gripper's state machine for movement and holding on a fixed timestep.
+    /// This method is responsible for moving the gripper towards its target, checking for collisions,
+    /// transitioning to a holding state upon reaching a target force, and maintaining that force
+    /// through a feedback loop.
     /// </summary>
     private void FixedUpdate()
     {
@@ -204,7 +222,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         if (_isMoving)
         {
             // During a close operation with force, check for contact and target force achievement.
-            if (_targetForce > 0f && IsColliding())
+            if (_targetForce > 0f && AreFingersColliding())
             {
                 // Read the force currently being applied by each finger.
                 float forceL = _pressureSensorL != null ? _pressureSensorL.LastForce : 0f;
@@ -231,7 +249,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
 
             float currentSpeed = _angularVelocity;
             // If closing and colliding but not yet at the target force, slow down the movement.
-            if (IsColliding() && _targetMasterValue == _upperLimit)
+            if (AreFingersColliding() && _targetMasterValue == _upperLimit)
             {
                 currentSpeed /= slowDownDenominator;
             }
@@ -250,14 +268,13 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         // State: Actively holding an object with a specific force.
         else if (_isHolding)
         {
-
             // Read forces from sensors
             float forceL = _pressureSensorL != null ? _pressureSensorL.LastForce : 0f;
             float forceR = _pressureSensorR != null ? _pressureSensorR.LastForce : 0f;
 
-            // New target value to apply to the gripper drive
             float newMasterValue;
 
+            // Adjust the gripper's target position based on the measured force
             // to maintain the target force. This creates a force-feedback loop.
             if (forceL > _targetForce && forceR > _targetForce)
             {
@@ -345,8 +362,8 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// <summary>
     /// Checks if both gripper fingers are currently colliding with something.
     /// </summary>
-    /// <returns>True if both pressure sensors are colliding, false otherwise.</returns>
-    private bool IsColliding()
+    /// <returns>True if both pressure sensors are reporting a collision, false otherwise.</returns>
+    private bool AreFingersColliding()
     {
         return _pressureSensorR.IsColliding && _pressureSensorL.IsColliding;
     }
@@ -369,8 +386,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         if (applyGap)
         {
             // Create a small, one-sided compliance gap to allow for a more stable grip.
-            // This is based on the logic from the original PickAndPlace script.
-            // It allows the joint to move back from the target, but not past it.
+            // This allows the joint to move back slightly from the target, but not past it, creating a spring-like effect.
             drive.lowerLimit = target - minMaxGap;
             drive.upperLimit = target;
         }
@@ -391,7 +407,6 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
         _plateR.xDrive = driveR;
         _fingerR2.xDrive = driveR;
 
-        // The left side also has the same limits of the right side.
         var driveL = _fingerL.xDrive;
         driveL.lowerLimit = _lowerLimit;
         driveL.upperLimit = _upperLimit;
