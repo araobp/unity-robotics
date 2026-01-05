@@ -1,3 +1,9 @@
+## Scenes
+
+- GeminiApiTest: Geminiへ生成させたC#向けGemini APIの試験
+- RobotTest: IKの基本動作を試験
+- PickAndPlace：Gemini Robotics-ER 1.5を使ったピック＆プレイスの試験
+
 ## Robot 3D Model in Blender
 
 <img src="../docs/robot.png" width=200>
