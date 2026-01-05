@@ -59,6 +59,9 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] Button buttonPlace;
     [SerializeField] Button buttonReset;
 
+    [Header("Detection target")]
+    [SerializeField] string detectionTargetLabel = "cube";
+
     [Header("Components")]
     [SerializeField] private CameraCapture cameraCapture;
     [SerializeField] private DetectedPoints detectedPoints;
