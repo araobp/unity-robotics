@@ -3,7 +3,7 @@
 
 (Work in progress)
 
-This project explores AI robot simulation using the Gemini API.
+This project explores AI robot simulation using the Gemini Robotics-ER.
 
 ## 1. クレーンゲームロボティクス (Crane Game Robotics)
 
