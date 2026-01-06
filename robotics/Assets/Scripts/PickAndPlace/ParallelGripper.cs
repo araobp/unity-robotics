@@ -128,7 +128,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// typically the length from the wrist joint to the gripping point. This value is crucial
     /// for accurate Inverse Kinematics (IK) calculations to position the end effector correctly.
     /// </summary>
-    public float EndEffectorSize => 0.392f;
+    public float EndEffectorSize => 0.412f;
 
     /// <summary>
     /// Gets the Transform of the edge of the end effector, which represents the precise

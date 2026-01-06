@@ -1,16 +1,17 @@
 using UnityEngine;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine.UI;
+using TMPro;
+using System.Runtime.CompilerServices;
 
 /// <summary>
-/// This class implements inverse kinematics (IK) for a 6-axis robot arm, enabling it to pick and place objects.
-/// It calculates the necessary joint angles to reach a target position and orientation, then animates the robot's
-/// movement to the calculated pose. The class also integrates with a camera and the Gemini API to detect
-/// objects in the scene, allowing for dynamic interaction with the environment. It supports a test mode for IK
-/// validation and provides UI controls for triggering detection and pick-and-place operations.
+/// This class manages the behavior of a 6-axis robot arm, including inverse kinematics (IK) for movement,
+/// object detection using a camera and the Gemini API, and pick-and-place operations. It provides UI controls
+/// for user interaction, such as detecting objects and executing pick-and-place sequences based on either
+/// pre-defined targets or natural language commands.
 /// </summary>
 public class PickAndPlace : MonoBehaviour
 {
@@ -61,13 +62,26 @@ public class PickAndPlace : MonoBehaviour
     [Tooltip("The angular velocity of the gripper when opening or closing.")]
     [SerializeField] float targetAngularVelocity = 30.0f;
 
+
+    [Header("Menu and Panels")]
+    [SerializeField] TMP_Dropdown dropdownMenu;
+    [SerializeField] GameObject panelObjectDetection;
+    [SerializeField] GameObject panelChat;
     // UI elements for displaying coordinates.
     [Header("Coordinate Display")]
     [SerializeField] Coordinate coordinateEndEffector;
     [SerializeField] Coordinate coordinatePick;
     [SerializeField] Coordinate coordinatePlace;
 
+    [Header("Chat UI")]
+    [SerializeField] TMP_InputField chatInputField;
+    [SerializeField] TMP_InputField chatOutputField;
+
+    // The precise point of interaction for the end effector.
     private Transform _endEffectorEdgeTransform;
+
+    // The last recorded local position of the end effector edge, set by setPose().
+    private Vector3 _endEffectorEdgeRestPosition;
 
     // UI buttons for triggering robot actions.
     [Header("Operation buttons")]
@@ -85,7 +99,7 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] private DetectedPoints detectedPoints;
 
     // API for interacting with the Gemini Robotics service.
-    private GeminiRoboticsApi geminiRoboticsApi; // API for interacting with the Gemini vision and language models.
+    private GeminiRoboticsApi geminiRoboticsApi;
 
     // A collection to store the workpieces detected by the vision system.
     private IEnumerable<DetectedObject> detectedWorkpieces;
@@ -104,6 +118,7 @@ public class PickAndPlace : MonoBehaviour
     const float AB = 0.169f;
     const float CD = 0.273f;
     private float _endEffectorSize = 0f;
+    Vector3 END_EFFECTOR_MARGIN = new Vector3(0f, 0.02f, 0f);
     const float FE = 0.49727f;
     const float ED = 0.70142f;
 
@@ -128,6 +143,19 @@ public class PickAndPlace : MonoBehaviour
 
         _endEffectorEdgeTransform = endEffector.GetComponent<IEndEffector>().EndEffectorEdgeTransform;
 
+        // Instantiate the GeminiRoboticsApi
+        geminiRoboticsApi = new GeminiRoboticsApi();
+
+        // Add a listener to the detect button to trigger the object detection process.
+        buttonDetect.onClick.AddListener(OnDetectButtonClicked);
+        buttonPickAndPlace.onClick.AddListener(OnPickAndPlaceButtonClicked);
+        chatInputField.onSubmit.AddListener(OnSubmitChat);
+
+        // Add a listener to the dropdown menu to handle panel switching.
+        dropdownMenu.onValueChanged.AddListener(OnDropdownValueChanged);
+        // Set the initial state of the panels based on the dropdown's default value.
+        OnDropdownValueChanged(dropdownMenu.value);
+
         try
         {
             // Set the initial pose of the robot arm.
@@ -143,16 +171,8 @@ public class PickAndPlace : MonoBehaviour
         {
             Debug.LogException(e);
         }
-
-        // Instantiate the GeminiRoboticsApi
-        geminiRoboticsApi = new GeminiRoboticsApi();
-
-        // Add a listener to the detect button to trigger the object detection process.
-        buttonDetect.onClick.AddListener(OnDetectButtonClicked);
-        buttonPickAndPlace.onClick.AddListener(OnPickAndPlaceButtonClicked);
-
     }
-    
+
     /// <summary>
     /// Called every frame. Updates the UI to display the current coordinates of the end effector (wrist).
     /// </summary>
@@ -180,6 +200,27 @@ public class PickAndPlace : MonoBehaviour
         // Cancel and dispose the CancellationTokenSource to prevent memory leaks.
         _ikMoveCts?.Cancel();
         _ikMoveCts?.Dispose();
+    }
+
+    /// <summary>
+    /// Handles the event when the dropdown menu selection changes. It activates and deactivates
+    /// UI panels based on the selected option.
+    /// </summary>
+    /// <param name="index">The index of the selected option in the dropdown.</param>
+    private void OnDropdownValueChanged(int index)
+    {
+        string selectedOption = dropdownMenu.options[index].text;
+
+        if (selectedOption == "Object Detection")
+        {
+            if (panelObjectDetection != null) panelObjectDetection.SetActive(true);
+            if (panelChat != null) panelChat.SetActive(false);
+        }
+        else if (selectedOption == "Chat")
+        {
+            if (panelObjectDetection != null) panelObjectDetection.SetActive(false);
+            if (panelChat != null) panelChat.SetActive(true);
+        }
     }
 
     // --- Public Methods ---
@@ -285,6 +326,65 @@ public class PickAndPlace : MonoBehaviour
     }
 
     /// <summary>
+    /// Handles the submission of a command from the chat input field. It captures an image,
+    /// sends it along with the user's instruction to the Gemini API to get movement commands,
+    /// and then executes the pick-and-place sequence for each move.
+    /// </summary>
+    /// <param name="instruction">The natural language instruction from the user.</param>
+    private async void OnSubmitChat(string instruction)
+    {
+        if (chatOutputField != null) chatOutputField.text = "";
+
+        if (string.IsNullOrWhiteSpace(instruction))
+        {
+            Debug.LogWarning("Instruction is empty.");
+            if (chatOutputField != null) chatOutputField.text += "Please enter an instruction!";
+            return;
+        }
+
+        if (cameraCapture == null || geminiRoboticsApi == null)
+        {
+            Debug.LogError("CameraCapture or GeminiRoboticsApi is not assigned.");
+            return;
+        }
+
+        // Clear previous detections and display the new ones.
+        detectedPoints.clear();
+
+        if (chatOutputField != null)
+        {
+            chatInputField.text = "";
+            chatOutputField.text += $"Processing instruction: \"{instruction}\"\n";
+        }
+
+        string b64Image = cameraCapture.CaptureAsBase64();
+        var moves = await geminiRoboticsApi.DetectAndMoveObjects(b64Image, instruction);
+
+        if (moves != null && moves.Any())
+        {
+            if (chatOutputField != null) chatOutputField.text += $"Found {moves.Length} moves. Executing...\n";
+            foreach (var move in moves)
+            {
+                detectedPoints.displayMove(move);
+                Vector3 pickPos = cameraCapture.ProjectToWorkAreaLocal(move.from.x / 1000f * cameraCapture.ImageWidth, move.from.y / 1000f * cameraCapture.ImageHeight);
+                Vector3 placePos = cameraCapture.ProjectToWorkAreaLocal(move.to.x / 1000f * cameraCapture.ImageWidth, move.to.y / 1000f * cameraCapture.ImageHeight);
+
+                Debug.Log($"[PickAndPlace] Move '{move.label}': from {pickPos} to {placePos}");
+                if (chatOutputField != null)
+                {
+                    chatOutputField.text += $"  - Moving '{move.label}' from {pickPos:F2} to {placePos:F2}.\n";
+                }
+                await PerformPickAndPlace(pickPos, placePos);
+            }
+            if (chatOutputField != null) chatOutputField.text += "Finished executing moves.\n";
+        }
+        else
+        {
+            if (chatOutputField != null) chatOutputField.text += "Sorry, I couldn't determine any moves from your instruction.\n";
+        }
+    }
+
+    /// <summary>
     /// Commands the gripper to open at a specified angular velocity.
     /// </summary>
     /// <param name="angularVelocity">The speed at which the gripper should open.</param>
@@ -371,7 +471,7 @@ public class PickAndPlace : MonoBehaviour
         {
             // Iterate through each detected object.
             foreach (var obj in detectedWorkpieces)
-            {   
+            {
                 Debug.Log($"Workpiece: {obj.label} at ({obj.point.x}, {obj.point.y})");
                 // Convert normalized 0-1000 coordinates to pixel coordinates.
                 float u = obj.point.x / 1000f * cameraCapture.ImageWidth;
@@ -381,7 +481,7 @@ public class PickAndPlace : MonoBehaviour
                 Vector3 workpiecePos = cameraCapture.ProjectToWorkAreaLocal(u, v);
                 Debug.Log($"[PickAndPlace] World Position of detected object '{obj.label}': {workpiecePos}");
                 // Start the pick-and-place sequence for the current object.
-                await pickAndPlace(workpiecePos, placeTarget.transform.localPosition);
+                await PerformPickAndPlace(workpiecePos, placeTarget.transform.localPosition);
             }
         }
         else
@@ -395,52 +495,79 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     private async Task TestIKSequence()
     {
-        await pickAndPlace(work.transform.localPosition, placeTarget.transform.localPosition);
+        // 1. Get the current local position of the 'work' object (the item to be picked)
+        Vector3 pickPos = work.transform.localPosition;
+
+        // 2. Adjust the vertical coordinate (y) to 0. 
+        // This ensures the IK target is set to the base of the object/ground level 
+        // rather than the center of the object's mesh.
+        pickPos = new Vector3(pickPos.x, 0f, pickPos.z);
+
+        // 3. Execute the asynchronous Pick and Place logic.
+        // Moves from the calculated ground-level pick position to the local position of 'placeTarget'.
+        await PerformPickAndPlace(pickPos, placeTarget.transform.localPosition);
     }
 
     /// <summary>
-    /// Executes a full pick-and-place sequence for a single object, moving from a pick position to a place position.
+    /// Executes a full pick-and-place sequence for a single object. The sequence involves:
+    /// 1. Opening the gripper to prepare for picking.
+    /// 2. Moving to a safe position above the pick location.
+    /// 3. Moving down to the pick location.
+    /// 4. Closing the gripper to grasp the object.
+    /// 5. Lifting the object to a safe height.
+    /// 6. Moving to a safe height above the place location.
+    /// 7. Moving down to the place location.
+    /// 8. Opening the gripper to release the object.
+    /// 9. Moving back up to a safe height.
     /// </summary>
     /// <param name="pickPos">The position where the object will be picked from.</param>
     /// <param name="placePos">The position where the object will be placed.</param>
-    private async Task pickAndPlace(Vector3 pickPos, Vector3 placePos)
+    private async Task PerformPickAndPlace(Vector3 pickPos, Vector3 placePos)
     {
-        // 2. Move above the object.
+        // 1. Move to a safe position above the object.
         Vector3 pickPositionAbove = new Vector3(pickPos.x, pickPos.y + 0.2f, pickPos.z);
         await PerformIK(pickPositionAbove);
 
-        // 3. Move down to the object.
-        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y + 0.02f, pickPos.z);
+        // 2. Open the gripper to prepare for picking.
+        await Open(targetAngularVelocity);
+
+        // 3. Move down to the object to be picked.
+        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y, pickPos.z) + END_EFFECTOR_MARGIN;
         await PerformIK(pickPositionAt);
 
         // 4. Close the gripper to pick up the object.
         await Close(targetForce, targetAngularVelocity);
-
         coordinatePick.UpdatePositionText(_endEffectorEdgeTransform.position);
 
-        // 5. Move back up with the object.
+        // 5. Lift the object to a safe height.
         Vector3 pickPositionLift = new Vector3(pickPos.x, pickPos.y + 0.4f, pickPos.z);
         await PerformIK(pickPositionLift);
 
+        // 6. Move to a safe height above the place position.
         Vector3 placePositionLift = new Vector3(placePos.x, placePos.y + 0.4f, placePos.z);
         await PerformIK(placePositionLift);
 
-        // 6. Move to the place target above position.
-        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z);
+        // 7. Move down to the place position.
+        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z) + END_EFFECTOR_MARGIN;
         await PerformIK(placePositionAbove);
 
         // 8. Open the gripper to release the object.
         await Open(targetAngularVelocity);
-
         coordinatePlace.UpdatePositionText(_endEffectorEdgeTransform.position);
 
-        // 9. Move back up from the place position.
+        // 9. Close the gripper.
+        await Close(targetForce, targetAngularVelocity);
+
+        // 10. Move back to the safe height above the place position.
         await PerformIK(placePositionLift);
+
+        // 11. Move back to the rest position.
+        await PerformIK(_endEffectorEdgeRestPosition);
     }
 
     /// <summary>
     /// Instantly sets the pose of the robot arm's articulations to the specified angles without animation,
-    /// and then opens the gripper.
+    /// memorizes the end effector's position, and then opens the gripper.
     /// </summary>
     /// <param name="swingAngle">The angle for the swing articulation in radians.</param>
     /// <param name="boomAngle">The angle for the boom articulation in radians.</param>
@@ -457,8 +584,9 @@ public class PickAndPlace : MonoBehaviour
         SetArticulationTarget(wristAb, -wristAngle * Mathf.Rad2Deg);
         // Wait for a short period to allow the joints to settle.
         await Task.Delay(100);
-        // Open the gripper.
-        await Open(100f);
+
+        // Memorize the end effector's local position after setting the pose.
+        _endEffectorEdgeRestPosition = workArea.transform.InverseTransformPoint(_endEffectorEdgeTransform.position);
     }
 
     /// <summary>
@@ -540,4 +668,7 @@ public class PickAndPlace : MonoBehaviour
         drive.target = target;
         articulation.xDrive = drive;
     }
+
+
+
 }

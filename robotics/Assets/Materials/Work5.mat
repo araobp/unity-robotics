@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Work4
+  m_Name: Work5
   m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -116,8 +116,8 @@ Material:
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.8, g: 0.47058824, b: 0.79443353, a: 1}
-    - _Color: {r: 0.8, g: 0.47058815, b: 0.79443353, a: 1}
+    - _BaseColor: {r: 0.8, g: 0.16785713, b: 0.18036613, a: 1}
+    - _Color: {r: 0.8, g: 0.16785708, b: 0.1803661, a: 1}
     - _EmissionColor: {r: 0.83018863, g: 0.7306942, b: 0.42684227, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []

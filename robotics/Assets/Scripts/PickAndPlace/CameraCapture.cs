@@ -3,8 +3,11 @@ using System;
 using UnityEngine.UI;
 
 /// <summary>
-/// Captures an image from a specified Unity Camera, converts it to a Base64-encoded string,
-/// and optionally displays it on a RawImage UI component.
+/// Handles camera operations, including capturing images and projecting 2D image coordinates
+/// into 3D world space. It can capture from a specified Unity Camera, convert the image
+/// to a Base64-encoded string, and optionally display it on a RawImage UI component.
+/// It also provides a method to project pixel coordinates from the captured image onto
+/// a defined work area plane in the 3D scene.
 /// </summary>
 public class CameraCapture : MonoBehaviour
 {
@@ -39,7 +42,9 @@ public class CameraCapture : MonoBehaviour
     [SerializeField] float debug_v = 240; // OpenCV Y
 
     /// <summary>
-    /// Initializes the component by finding the main camera if no capture camera is assigned.
+    /// Initializes camera parameters for projection calculations. This includes calculating
+    /// the horizontal field of view and determining the camera's position and orientation
+    /// relative to the work area.
     /// </summary>
     void Start()
     {
@@ -57,18 +62,19 @@ public class CameraCapture : MonoBehaviour
             fovVertical = captureCamera.fieldOfView;
             fovHorizontal = 2f * Mathf.Atan(Mathf.Tan(fovVertical * Mathf.Deg2Rad / 2f) * captureCamera.aspect) * Mathf.Rad2Deg;
 
-            // 1. Get Camera position relative to Work Area
+            // Get the camera's position relative to the work area's local coordinate system.
             Vector3 localPos = workArea.transform.InverseTransformPoint(captureCamera.transform.position);
-            H = localPos.y;     // Height above the work area plane
-            L_cam = localPos.z; // Depth offset from work area origin
+            H = localPos.y;     // Height (Y-axis) of the camera above the work area plane.
+            L_cam = localPos.z; // Depth (Z-axis) offset of the camera from the work area origin.
 
-            // 2. Fix Theta Calculation
+            // Calculate the camera's depression angle (theta).
             // We want the angle between the camera's forward vector and the work area's horizontal plane.
             // Vector3.Angle gives the angle between 0 and 180.
-            float angleToGround = Vector3.Angle(captureCamera.transform.forward, -workArea.transform.up); 
-    // If angleToGround is 0, camera is looking straight down. 
-    // theta (angle from horizontal) = 90 - angleToGround.
-    theta = 90f - angleToGround;
+            float angleToGround = Vector3.Angle(captureCamera.transform.forward, -workArea.transform.up);
+
+            // If angleToGround is 0, camera is looking straight down. 
+            // theta (angle from horizontal) = 90 - angleToGround.
+            theta = 90f - angleToGround;
 
             // Debugging
             Debug.Log($"[Projection] H: {H}, L_cam: {L_cam}, Theta: {theta}");
@@ -81,12 +87,14 @@ public class CameraCapture : MonoBehaviour
     }
 
     /// <summary>
-    /// Captures a frame from the assigned camera and returns it as a Base64 encoded string.
+    /// Captures a single frame from the assigned camera, encodes it as a JPG, and returns it
+    /// as a Base64 encoded string. If an output RawImage is assigned, the captured image is
+    /// also displayed on it.
     /// </summary>
-    /// <returns>A Base64 encoded string of the captured JPG image.</returns>
+    /// <returns>A Base64 encoded string representing the captured JPG image.</returns>
     public string CaptureAsBase64()
     {
-        // Render the camera's view to a temporary RenderTexture.
+        // Create a temporary RenderTexture to hold the camera's view.
         RenderTexture renderTexture = RenderTexture.GetTemporary(ImageWidth, ImageHeight, 24);
 
         var previousTargetTexture = captureCamera.targetTexture;
@@ -96,18 +104,18 @@ public class CameraCapture : MonoBehaviour
 
         RenderTexture.active = renderTexture;
 
-        // Read the pixels from the RenderTexture into a new Texture2D.
+        // Create a new Texture2D and read the pixels from the active RenderTexture.
         Texture2D capturedImage = new Texture2D(ImageWidth, ImageHeight, TextureFormat.RGB24, false);
 
         capturedImage.ReadPixels(new Rect(0, 0, ImageWidth, ImageHeight), 0, 0);
         capturedImage.Apply();
 
-        // Restore the camera's target texture and release the temporary RenderTexture.
+        // Restore the camera's original target texture and release the temporary one.
         captureCamera.targetTexture = previousTargetTexture;
         RenderTexture.active = null;
         RenderTexture.ReleaseTemporary(renderTexture);
 
-        // If an output RawImage is assigned, display the captured image.
+        // If an output RawImage is provided, display the captured image on it.
         if (outputRawImage != null)
         {
             // Destroy the previous texture to prevent memory leaks before assigning the new one.
@@ -121,11 +129,11 @@ public class CameraCapture : MonoBehaviour
             outputRawImage.texture = capturedImage;
         }
 
-        // Encode the image to JPG format and then convert to a Base64 string.
+        // Encode the captured image to JPG format and then convert it to a Base64 string.
         byte[] imageBytes = capturedImage.EncodeToJPG();
         _lastCaptureBase64 = Convert.ToBase64String(imageBytes);
 
-        // If the image is not being displayed, we should destroy the texture to free up memory.
+        // If the captured image is not being displayed on a UI element, destroy it to free up memory.
         if (outputRawImage == null)
 #if UNITY_EDITOR
             // Use DestroyImmediate in the editor to avoid errors about destroying assets.
@@ -138,25 +146,34 @@ public class CameraCapture : MonoBehaviour
     }
 
     /// <summary>
-    /// Converts OpenCV pixel coordinates to Unity world coordinates.
+    /// Projects a 2D pixel coordinate from the camera's view onto the 3D work area plane.
+    /// This uses the camera's intrinsic (FOV) and extrinsic (position, rotation) parameters
+    /// calculated during Start().
     /// </summary>
-    /// <param name="u">OpenCV X (0 to Width)</param>
-    /// <param name="v">OpenCV Y (0 to Height)</param>
-    /// <returns>Unity Workarea Local Position (X, 0, Z)</returns>
+    /// <param name="u">The horizontal pixel coordinate (from 0 to ImageWidth). Corresponds to OpenCV's x-coordinate.</param>
+    /// <param name="v">The vertical pixel coordinate (from 0 to ImageHeight). Corresponds to OpenCV's y-coordinate.</param>
+    /// <returns>The projected 3D position in the work area's local coordinate system, with Y set to 0.</returns>
     public Vector3 ProjectToWorkAreaLocal(float u, float v)
     {
+        // Convert pixel coordinates (top-left origin) to image-center-relative coordinates.
         float u_prime = u - ImageWidth * 0.5f;
         float v_prime = ImageHeight * 0.5f - v;
 
+        // Calculate the vertical (alpha) and horizontal (beta) angles of the pixel relative to the camera's forward axis.
         float alpha = Mathf.Atan((v_prime / (ImageHeight * 0.5f)) * Mathf.Tan(fovVertical * 0.5f * Mathf.Deg2Rad));
         float beta = Mathf.Atan((u_prime / (ImageWidth * 0.5f)) * Mathf.Tan(fovHorizontal * 0.5f * Mathf.Deg2Rad));
+
+        // Gamma is the final downward angle from the horizontal plane to the point on the ground.
         float gamma = (theta * Mathf.Deg2Rad) + alpha;
 
+        // If the point is at or above the horizon, it cannot be projected onto the work plane.
         if (gamma <= 0.001f) return new Vector3(0, -999, 0);
 
+        // Use trigonometry to find the distance from the camera's ground-projection to the target point.
         float z_dist = H / Mathf.Tan(gamma);
         Debug.Log($"[Projection] z_dist: {H / Mathf.Tan((theta) * Mathf.Deg2Rad)}");
 
+        // Calculate the final local X and Z coordinates on the work area plane.
         float localZ = L_cam - z_dist;
         Debug.Log($"[Projection] localZ: {localZ}");
 
