@@ -90,7 +90,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// <summary>
     /// The transform representing the precise point of interaction for the end effector.
     /// </summary>
-    private Transform _endEffectorEdgeTransform;
+    private Transform _toolCenterPoint;
 
 
     // --- State variables ---
@@ -134,7 +134,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// Gets the Transform of the edge of the end effector, which represents the precise
     /// point of interaction (e.g., the tip of the gripper fingers).
     /// </summary>
-    public Transform EndEffectorEdgeTransform => _endEffectorEdgeTransform;
+    public Transform ToolCenterPoint => _toolCenterPoint;
 
     /// <summary>
     /// Gets the current target position of the gripper's master joint drive.
@@ -173,7 +173,7 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// </summary>
     private void Start()
     {
-        _endEffectorEdgeTransform = transform.Find("Palm/EndEffectorEdge");
+        _toolCenterPoint = transform.Find("Palm/ToolCenterPoint");
         _fingerR = transform.Find("Palm/J1R/FingerR").GetComponent<ArticulationBody>();
         _plateR = transform.Find("Palm/J1R/FingerR/J2R/PlateR").GetComponent<ArticulationBody>();
         _fingerR2 = transform.Find("Palm/J1R/FingerR/J2R/PlateR/J3R/Finger2R").GetComponent<ArticulationBody>();

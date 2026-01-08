@@ -8,17 +8,10 @@ using UnityEngine;
 public interface IEndEffector
 {
     /// <summary>
-    /// Gets the characteristic size of the end effector in meters. This value is crucial
-    /// for accurate Inverse Kinematics (IK) calculations to position the end effector correctly.
-    /// For a gripper, this is typically the length from the wrist joint to the gripping point.
-    /// </summary>
-    float EndEffectorSize { get; }
-
-    /// <summary>
     /// Gets the Transform of the edge of the end effector, which represents the precise
     /// point of interaction (e.g., the tip of the gripper fingers).
     /// </summary>
-    Transform EndEffectorEdgeTransform { get; }
+    Transform ToolCenterPoint { get; }
 
     /// <summary>
     /// Gets the current target position of the end effector's primary drive. For a gripper,

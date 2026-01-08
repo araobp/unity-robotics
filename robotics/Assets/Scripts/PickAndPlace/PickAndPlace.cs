@@ -15,6 +15,13 @@ using System.Runtime.CompilerServices;
 /// </summary>
 public class PickAndPlace : MonoBehaviour
 {
+    // --- Enums ---
+    public enum InterpolationType
+    {
+        Joint,
+        Linear
+    }
+
     // --- Fields ---
 
     [Header("IK Test Mode")]
@@ -31,8 +38,14 @@ public class PickAndPlace : MonoBehaviour
 
     // Inverse kinematics behavior settings.
     [Header("IK Settings")]
-    [Tooltip("The angular speed of the fastest joint in degrees per second during an IK movement.")]
-    [SerializeField] private float ikAngularSpeed = 60.0f;
+    [Tooltip("The interpolation method to use for movement.")]
+    [SerializeField] private InterpolationType interpolationType = InterpolationType.Linear;
+
+    [Tooltip("The speed of the end effector in meters per second during a linear IK movement.")]
+    [SerializeField] private float ikLinearSpeed = 0.01f;
+
+    [Tooltip("The angular speed of the fastest joint in degrees per second during a joint-based IK movement.")]
+    [SerializeField] private float ikJointAngularSpeed = 60.0f;
 
     [Tooltip("Whether to use Ease-in/Ease-out interpolation for smoother movement.")]
     [SerializeField] bool useEaseinEaseout = true;
@@ -77,11 +90,17 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] TMP_InputField chatInputField;
     [SerializeField] TMP_InputField chatOutputField;
 
-    // The precise point of interaction for the end effector.
-    private Transform _endEffectorEdgeTransform;
+    // The Transform representing the precise point of interaction for the end effector,
+    // often located at the center of the gripper's fingers. The IK solver targets this point.
+    private Transform _toolCenterPoint;
 
     // The last recorded local position of the end effector edge, set by setPose().
     private Vector3 _endEffectorEdgeRestPosition;
+
+    // The last commanded target position for the end effector. This is used to ensure smooth transitions
+    // between movements by starting new trajectories from the last intended destination, rather than the
+    // current physical position, which may have a slight "gravity sag".
+    private Vector3 _lastTargetPosition;
 
     // UI buttons for triggering robot actions.
     [Header("Operation buttons")]
@@ -99,26 +118,34 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] private DetectedPoints detectedPoints;
 
     // API for interacting with the Gemini Robotics service.
-    private GeminiRoboticsApi geminiRoboticsApi;
+    private GeminiRoboticsApi _geminiRoboticsApi;
 
     // A collection to store the workpieces detected by the vision system.
-    private IEnumerable<DetectedObject> detectedWorkpieces;
+    private IEnumerable<DetectedObject> _detectedWorkpieces;
 
     // Used to cancel the in-progress asynchronous movement task.
     private CancellationTokenSource _ikMoveCts;
 
     // Cached ArticulationBody components for each joint.
-    private ArticulationBody swingAb;
-    private ArticulationBody boomAb;
-    private ArticulationBody armAb;
-    private ArticulationBody handAb;
-    private ArticulationBody wristAb;
+    private ArticulationBody _swingAb;
+    private ArticulationBody _boomAb;
+    private ArticulationBody _armAb;
+    private ArticulationBody _handAb;
+    private ArticulationBody _wristAb;
 
     // Robot arm segment lengths (in meters).
-    const float AB = 0.169f;
-    const float CD = 0.273f;
-    private float _endEffectorSize = 0f;
-    Vector3 END_EFFECTOR_MARGIN = new Vector3(0f, 0.02f, 0f);
+    const float AB = 0.1689f;
+    const float CD = 0.27312f;
+
+    // FB = HAND_AND_WRITE_SIZE + _toolSize
+    const float HAND_AND_WRISTE_SIZE = 0.17259f;
+
+    // Tool size attached to the wrist of the end effector
+    private float _toolSize = 0f;
+
+    // A small vertical offset added to target positions to ensure the gripper doesn't collide with the table
+    // or the object itself. This margin provides a safe clearance.
+    Vector3 TCP_MARGIN = new Vector3(0f, 0.01f, 0f);
     const float FE = 0.49727f;
     const float ED = 0.70142f;
 
@@ -131,20 +158,19 @@ public class PickAndPlace : MonoBehaviour
     async void Start()
     {
         // Cache ArticulationBody components for each robot joint to improve performance.
-        swingAb = swing.GetComponent<ArticulationBody>();
-        boomAb = boom.GetComponent<ArticulationBody>();
-        armAb = arm.GetComponent<ArticulationBody>();
-        handAb = hand.GetComponent<ArticulationBody>();
-        wristAb = wrist.GetComponent<ArticulationBody>();
+        _swingAb = swing.GetComponent<ArticulationBody>();
+        _boomAb = boom.GetComponent<ArticulationBody>();
+        _armAb = arm.GetComponent<ArticulationBody>();
+        _handAb = hand.GetComponent<ArticulationBody>();
+        _wristAb = wrist.GetComponent<ArticulationBody>();
 
         // Get the end effector size from the ParallelGripper component.
-        _endEffectorSize = endEffector.GetComponent<IEndEffector>().EndEffectorSize;
-        Debug.Log("End Effector Size: " + _endEffectorSize);
-
-        _endEffectorEdgeTransform = endEffector.GetComponent<IEndEffector>().EndEffectorEdgeTransform;
+        _toolCenterPoint = endEffector.GetComponent<IEndEffector>().ToolCenterPoint;
+        _toolSize = (wrist.transform.position - _toolCenterPoint.position).magnitude;
+        Debug.Log("End Effector Size: " + _toolSize);
 
         // Instantiate the GeminiRoboticsApi
-        geminiRoboticsApi = new GeminiRoboticsApi();
+        _geminiRoboticsApi = new GeminiRoboticsApi();
 
         // Add a listener to the detect button to trigger the object detection process.
         buttonDetect.onClick.AddListener(OnDetectButtonClicked);
@@ -179,7 +205,7 @@ public class PickAndPlace : MonoBehaviour
     void Update()
     {
         // Get the current position of the wrist relative to the robot base and update the UI display.
-        coordinateEndEffector.UpdatePositionText(workArea.transform.InverseTransformPoint(_endEffectorEdgeTransform.position));
+        coordinateEndEffector.UpdatePositionText(workArea.transform.InverseTransformPoint(_toolCenterPoint.position));
     }
 
     /// <summary>
@@ -235,59 +261,7 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="delay">Optional delay in milliseconds before the movement starts.</param>
     public async Task PerformIK(Vector3 targetPosition, float duration = 0, int delay = 1000)
     {
-        // Introduce a delay before starting the IK calculation and movement.
         await Task.Delay(delay);
-
-        // Calculate the target position relative to the robot base.
-        Vector3 A = targetPosition;
-        Debug.Log("Work position: " + A.ToString("F4"));
-
-        // --- 2D Planar Inverse Kinematics Calculation --- //
-
-        // theta1 is the base swing angle around the Y-axis.
-        float theta1 = Mathf.Atan2(A.z, A.x);
-        Debug.Log("Theta1: " + (theta1 * Mathf.Rad2Deg).ToString("F4"));
-
-        // Horizontal distance from the base to the target point in the XZ plane.
-        float AC = Mathf.Sqrt(A.x * A.x + A.z * A.z);
-        // Angle correction to account for the boom's pivot offset from the base's center.
-        float theta3 = Mathf.Asin(AB / AC);
-        Debug.Log("Theta3: " + (theta3 * Mathf.Rad2Deg).ToString("F4"));
-
-        // Corrected horizontal distance from the boom pivot to the target's projection.
-        float BC = AC * Mathf.Cos(theta3);
-        Debug.Log("BC: " + BC.ToString("F4"));
-
-        // The final, corrected swing angle for the base articulation.
-        float theta2 = theta1 - theta3;
-        Debug.Log("Theta2: " + (theta2 * Mathf.Rad2Deg).ToString("F4"));
-
-        // Vertical distance from the boom pivot to the wrist joint.
-        float GF = _endEffectorSize - CD + A.y;
-
-        // The direct distance from the boom pivot to the wrist joint, forming a triangle with the boom and arm.
-        float r = Mathf.Sqrt(BC * BC + GF * GF);
-        Debug.Log("r: " + r.ToString("F4"));
-
-        // Calculate internal angles of the arm triangle (boom, arm, r) using the Law of Cosines.
-        // theta6 is the angle at the wrist joint.
-        float theta6 = Mathf.Acos((FE * FE - ED * ED - r * r) / (-2 * ED * r));
-        // theta7 is the angle at the arm joint (elbow).
-        float theta7 = Mathf.Acos((r * r - FE * FE - ED * ED) / (-2 * FE * ED));
-        Debug.Log("Theta6: " + (theta6 * Mathf.Rad2Deg).ToString("F4"));
-        Debug.Log("Theta7: " + (theta7 * Mathf.Rad2Deg).ToString("F4"));
-
-        // Calculate the final angles for the boom and hand articulations.
-        // theta5 is the angle of the line 'r' with the horizontal plane.
-        float theta5 = Mathf.Atan2(GF, BC);
-        // theta4 is the angle for the boom articulation.
-        float theta4 = theta5 + theta6;
-        Debug.Log("Theta4: " + (theta4 * Mathf.Rad2Deg).ToString("F4"));
-        Debug.Log("Theta5: " + (theta5 * Mathf.Rad2Deg).ToString("F4"));
-
-        // Calculate the hand angle to keep the end effector level.
-        float theta8 = 3 * Mathf.PI / 2 - theta4 - theta7;
-        Debug.Log("Theta8: " + (theta8 * Mathf.Rad2Deg).ToString("F4"));
 
         // Cancel any existing movement task before starting a new one.
         if (_ikMoveCts != null)
@@ -295,34 +269,46 @@ public class PickAndPlace : MonoBehaviour
             _ikMoveCts.Cancel();
             _ikMoveCts.Dispose();
         }
-
-        // Start the asynchronous movement task, allowing for cancellation.
         _ikMoveCts = new CancellationTokenSource();
 
-        float moveDuration = duration;
-        if (moveDuration <= 0 && ikAngularSpeed > 0)
+        Debug.Log($"Performing IK...: {interpolationType}");
+        if (interpolationType == InterpolationType.Linear)
         {
-            // Calculate the duration based on the largest joint angle change required.
-            // This ensures a more consistent speed across different types of movements.
-            float swingStart = swingAb.xDrive.target;
-            float boomStart = boomAb.xDrive.target;
-            float armStart = armAb.xDrive.target;
-            float handStart = handAb.xDrive.target;
-
-            float maxAngleChange = 0f;
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theta2 * Mathf.Rad2Deg) - swingStart));
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((-theta4 * Mathf.Rad2Deg) - boomStart));
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theta7 * Mathf.Rad2Deg) - armStart));
-            maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs((theta8 * Mathf.Rad2Deg) - handStart));
-            moveDuration = maxAngleChange / ikAngularSpeed;
+            await MoveToTargetLinearly(targetPosition, ikLinearSpeed, _ikMoveCts.Token);
         }
+        else // Joint interpolation
+        {
+            // Determine the closest IK solution family at the start of the movement.
+            var currentArmAngle = _armAb.xDrive.target;
+            (float _, float _, float normalArmAngle, float _) = CalculateIKAngles(targetPosition, useAlternate: false);
+            (float _, float _, float alternateArmAngle, float _) = CalculateIKAngles(targetPosition, useAlternate: true);
 
-        float swingTarget = -theta2 * Mathf.Rad2Deg;
-        float boomTarget = -theta4 * Mathf.Rad2Deg;
-        float armTarget = theta7 * Mathf.Rad2Deg;
-        float handTarget = theta8 * Mathf.Rad2Deg;
+            bool useAlternate = Mathf.Abs(currentArmAngle - alternateArmAngle) < Mathf.Abs(currentArmAngle - normalArmAngle);
 
-        await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, moveDuration, _ikMoveCts.Token);
+
+            (float swingTarget, float boomTarget, float armTarget, float handTarget) = CalculateIKAngles(targetPosition, useAlternate);
+
+            float moveDuration = duration;
+            if (moveDuration <= 0 && ikJointAngularSpeed > 0)
+            {
+                // Calculate the duration based on the largest joint angle change required.
+                // This ensures a more consistent speed across different types of movements.
+                float swingStart = _swingAb.xDrive.target;
+                float boomStart = _boomAb.xDrive.target;
+                float armStart = _armAb.xDrive.target;
+                float handStart = _handAb.xDrive.target;
+
+                float maxAngleChange = 0f;
+                maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs(swingTarget - swingStart));
+                maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs(boomTarget - boomStart));
+                maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs(armTarget - armStart));
+                maxAngleChange = Mathf.Max(maxAngleChange, Mathf.Abs(handTarget - handStart));
+                moveDuration = maxAngleChange / ikJointAngularSpeed;
+            }
+
+            await MoveToTargets(swingTarget, boomTarget, armTarget, handTarget, moveDuration, _ikMoveCts.Token);
+            _lastTargetPosition = targetPosition;
+        }
     }
 
     /// <summary>
@@ -342,7 +328,7 @@ public class PickAndPlace : MonoBehaviour
             return;
         }
 
-        if (cameraCapture == null || geminiRoboticsApi == null)
+        if (cameraCapture == null || _geminiRoboticsApi == null)
         {
             Debug.LogError("CameraCapture or GeminiRoboticsApi is not assigned.");
             return;
@@ -358,7 +344,7 @@ public class PickAndPlace : MonoBehaviour
         }
 
         string b64Image = cameraCapture.CaptureAsBase64();
-        var moves = await geminiRoboticsApi.DetectAndMoveObjects(b64Image, instruction);
+        var moves = await _geminiRoboticsApi.DetectAndMoveObjects(b64Image, instruction);
 
         if (moves != null && moves.Any())
         {
@@ -370,10 +356,7 @@ public class PickAndPlace : MonoBehaviour
                 Vector3 placePos = cameraCapture.ProjectToWorkAreaLocal(move.to.x / 1000f * cameraCapture.ImageWidth, move.to.y / 1000f * cameraCapture.ImageHeight);
 
                 Debug.Log($"[PickAndPlace] Move '{move.label}': from {pickPos} to {placePos}");
-                if (chatOutputField != null)
-                {
-                    chatOutputField.text += $"  - Moving '{move.label}' from {pickPos:F2} to {placePos:F2}.\n";
-                }
+                if (chatOutputField != null) chatOutputField.text += $"  - Moving '{move.label}' from {pickPos:F2} to {placePos:F2}.\n";
                 await PerformPickAndPlace(pickPos, placePos);
             }
             if (chatOutputField != null) chatOutputField.text += "Finished executing moves.\n";
@@ -423,7 +406,7 @@ public class PickAndPlace : MonoBehaviour
     private async void OnDetectButtonClicked()
     {
         // Ensure required components are assigned.
-        if (cameraCapture == null || geminiRoboticsApi == null)
+        if (cameraCapture == null || _geminiRoboticsApi == null)
         {
             Debug.LogError("CameraCapture or GeminiRoboticsApi is not assigned.");
             return;
@@ -433,7 +416,7 @@ public class PickAndPlace : MonoBehaviour
         string b64Image = cameraCapture.CaptureAsBase64();
 
         // Send the image to the Gemini API and wait for the detected objects.
-        var objectObjects = await geminiRoboticsApi.DetectObjects(b64Image);
+        var objectObjects = await _geminiRoboticsApi.DetectObjects(b64Image);
 
         // Log the detected objects to the console.
         Debug.Log($"Detected {objectObjects.Length} objects.");
@@ -450,9 +433,9 @@ public class PickAndPlace : MonoBehaviour
         }
 
         // Find the target object and store it.
-        if (detectedPoints.TryGetDetectedObjects(detectionTargetLabel, out detectedWorkpieces))
+        if (detectedPoints.TryGetDetectedObjects(detectionTargetLabel, out _detectedWorkpieces))
         {
-            Debug.Log($"Found target workpiece: {detectedWorkpieces.First().label} at ({detectedWorkpieces.First().point.x}, {detectedWorkpieces.First().point.y})");
+            Debug.Log($"Found target workpiece: {_detectedWorkpieces.First().label} at ({_detectedWorkpieces.First().point.x}, {_detectedWorkpieces.First().point.y})");
         }
         else
         {
@@ -467,10 +450,10 @@ public class PickAndPlace : MonoBehaviour
     private async void OnPickAndPlaceButtonClicked()
     {
         // Check if there are any detected workpieces to process.
-        if (detectedWorkpieces != null && detectedWorkpieces.Any())
+        if (_detectedWorkpieces != null && _detectedWorkpieces.Any())
         {
             // Iterate through each detected object.
-            foreach (var obj in detectedWorkpieces)
+            foreach (var obj in _detectedWorkpieces)
             {
                 Debug.Log($"Workpiece: {obj.label} at ({obj.point.x}, {obj.point.y})");
                 // Convert normalized 0-1000 coordinates to pixel coordinates.
@@ -532,12 +515,12 @@ public class PickAndPlace : MonoBehaviour
         await Open(targetAngularVelocity);
 
         // 3. Move down to the object to be picked.
-        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y, pickPos.z) + END_EFFECTOR_MARGIN;
+        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y, pickPos.z) + TCP_MARGIN;
         await PerformIK(pickPositionAt);
 
         // 4. Close the gripper to pick up the object.
         await Close(targetForce, targetAngularVelocity);
-        coordinatePick.UpdatePositionText(_endEffectorEdgeTransform.position);
+        coordinatePick.UpdatePositionText(workArea.transform.InverseTransformPoint(_toolCenterPoint.position));
 
         // 5. Lift the object to a safe height.
         Vector3 pickPositionLift = new Vector3(pickPos.x, pickPos.y + 0.4f, pickPos.z);
@@ -548,18 +531,18 @@ public class PickAndPlace : MonoBehaviour
         await PerformIK(placePositionLift);
 
         // 7. Move down to the place position.
-        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z) + END_EFFECTOR_MARGIN;
+        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z) + TCP_MARGIN;
         await PerformIK(placePositionAbove);
 
         // 8. Open the gripper to release the object.
         await Open(targetAngularVelocity);
-        coordinatePlace.UpdatePositionText(_endEffectorEdgeTransform.position);
+        coordinatePlace.UpdatePositionText(workArea.transform.InverseTransformPoint(_toolCenterPoint.position));
 
-        // 9. Close the gripper.
-        await Close(targetForce, targetAngularVelocity);
-
-        // 10. Move back to the safe height above the place position.
+        // 9. Move back to the safe height above the place position.
         await PerformIK(placePositionLift);
+
+        // 10. Close the gripper.
+        await Close(targetForce, targetAngularVelocity);
 
         // 11. Move back to the rest position.
         await PerformIK(_endEffectorEdgeRestPosition);
@@ -577,16 +560,17 @@ public class PickAndPlace : MonoBehaviour
     private async Task setPose(float swingAngle, float boomAngle, float armAngle, float handAngle, float wristAngle)
     {
         // Set the target angle for each articulation body, converting from radians to degrees.
-        SetArticulationTarget(swingAb, -swingAngle * Mathf.Rad2Deg);
-        SetArticulationTarget(boomAb, -boomAngle * Mathf.Rad2Deg);
-        SetArticulationTarget(armAb, armAngle * Mathf.Rad2Deg);
-        SetArticulationTarget(handAb, handAngle * Mathf.Rad2Deg);
-        SetArticulationTarget(wristAb, -wristAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(_swingAb, -swingAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(_boomAb, -boomAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(_armAb, armAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(_handAb, handAngle * Mathf.Rad2Deg);
+        SetArticulationTarget(_wristAb, -wristAngle * Mathf.Rad2Deg);
         // Wait for a short period to allow the joints to settle.
         await Task.Delay(100);
 
         // Memorize the end effector's local position after setting the pose.
-        _endEffectorEdgeRestPosition = workArea.transform.InverseTransformPoint(_endEffectorEdgeTransform.position);
+        _endEffectorEdgeRestPosition = workArea.transform.InverseTransformPoint(_toolCenterPoint.position);
+        _lastTargetPosition = _endEffectorEdgeRestPosition;
     }
 
     /// <summary>
@@ -602,10 +586,19 @@ public class PickAndPlace : MonoBehaviour
     private async Task MoveToTargets(float swingTarget, float boomTarget, float armTarget, float handTarget, float duration, CancellationToken cancellationToken)
     {
         // Capture the starting angle of each articulation.
-        float swingStart = swingAb.xDrive.target;
-        float boomStart = boomAb.xDrive.target;
-        float armStart = armAb.xDrive.target;
-        float handStart = handAb.xDrive.target;
+        float swingStart = _swingAb.xDrive.target;
+        float boomStart = _boomAb.xDrive.target;
+        float armStart = _armAb.xDrive.target;
+        float handStart = _handAb.xDrive.target;
+
+    // Unwrap the swing angle to ensure the shortest path is taken.
+    while (Mathf.Abs(swingTarget - swingStart) > 180.0f)
+    {
+        if (swingTarget > swingStart)
+            swingTarget -= 360.0f;
+        else
+            swingTarget += 360.0f;
+    }
 
         // Keep track of the time elapsed during the movement.
         float elapsedTime = 0f;
@@ -629,12 +622,12 @@ public class PickAndPlace : MonoBehaviour
 
                 // Calculate the interpolated angle for each joint.
                 float swingRotation = Mathf.Lerp(swingStart, swingTarget, t);
-                SetArticulationTarget(swingAb, swingRotation);
-                SetArticulationTarget(boomAb, Mathf.Lerp(boomStart, boomTarget, t));
-                SetArticulationTarget(armAb, Mathf.Lerp(armStart, armTarget, t));
-                SetArticulationTarget(handAb, Mathf.Lerp(handStart, handTarget, t));
+                SetArticulationTarget(_swingAb, swingRotation);
+                SetArticulationTarget(_boomAb, Mathf.Lerp(boomStart, boomTarget, t));
+                SetArticulationTarget(_armAb, Mathf.Lerp(armStart, armTarget, t));
+                SetArticulationTarget(_handAb, Mathf.Lerp(handStart, handTarget, t));
                 // Adjust the wrist to keep it aligned (e.g., parallel to the table).
-                SetArticulationTarget(wristAb, isAlignedToTable ? swingRotation - 90 : swingRotation);
+                SetArticulationTarget(_wristAb, isAlignedToTable ? swingRotation - 90 : swingRotation);
 
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
@@ -642,11 +635,11 @@ public class PickAndPlace : MonoBehaviour
             }
 
             // Snap to the final target angles to ensure precision.
-            SetArticulationTarget(swingAb, swingTarget);
-            SetArticulationTarget(boomAb, boomTarget);
-            SetArticulationTarget(armAb, armTarget);
-            SetArticulationTarget(handAb, handTarget);
-            SetArticulationTarget(wristAb, isAlignedToTable ? swingTarget - 90 : swingTarget);
+            SetArticulationTarget(_swingAb, swingTarget);
+            SetArticulationTarget(_boomAb, boomTarget);
+            SetArticulationTarget(_armAb, armTarget);
+            SetArticulationTarget(_handAb, handTarget);
+            SetArticulationTarget(_wristAb, isAlignedToTable ? swingTarget - 90 : swingTarget);
         }
         catch (TaskCanceledException)
         {
@@ -654,7 +647,180 @@ public class PickAndPlace : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Moves the robot's end-effector in a straight line from its current position to the target position.
+    /// This is achieved by calculating a series of intermediate points along the line and solving the
+    /// inverse kinematics for each point.
+    /// </summary>
+    /// <param name="targetPosition">The destination position in the robot's local space.</param>
+    /// <param name="speed">The desired speed of the end-effector in meters per second.</param>
+    /// <param name="token">A cancellation token to stop the movement prematurely.</param>
+    private async Task MoveToTargetLinearly(Vector3 targetPosition, float speed, CancellationToken token)
+    {
+        // We read the arm's current physical position to determine the starting point of the movement.
+        Vector3 startPosition = workArea.transform.InverseTransformPoint(this._toolCenterPoint.position);
+
+        // --- Gravity Sag Compensation ---
+        // If the robot arm is holding a position, its actual physical location might be slightly
+        // lower than its commanded target position due to "gravity sag" or "droop".
+        // If we start a new movement from this slightly sagged physical position, the physics controller
+        // might lose its "holding force", causing a small drop or jerk at the start of the new movement.
+        // To prevent this, we check if the current physical position is reasonably close to the last
+        // *commanded* target position. If it is, we start the new movement from that last commanded
+        // target, ensuring a smooth, continuous trajectory without the jerk.
+        if (Vector3.Distance(startPosition, _lastTargetPosition) < 0.1f)
+        {
+            startPosition = _lastTargetPosition;
+        }
+
+        float distance = Vector3.Distance(startPosition, targetPosition);
+
+        // --- IK Solution Continuity ---
+        // For any given target position, there are two possible "elbow up" and "elbow down" solutions.
+        // To prevent the arm from suddenly "flipping" between these solutions during a movement,
+        // we determine which solution family is closer to the arm's current pose at the very
+        // beginning of the movement. We then stick with that solution for the entire trajectory.
+        var currentArmAngle = _armAb.xDrive.target;
+        (float _, float _, float normalArmAngle, float _) = CalculateIKAngles(startPosition, useAlternate: false);
+        (float _, float _, float alternateArmAngle, float _) = CalculateIKAngles(startPosition, useAlternate: true);
+
+        bool useAlternate = Mathf.Abs(currentArmAngle - alternateArmAngle) < Mathf.Abs(currentArmAngle - normalArmAngle);
+
+        if (distance <= 0.001f)
+        {
+            return;
+        }
+
+        // Calculate duration based on distance and speed.
+        // If speed is not positive, snap to target instantly.
+        float duration = (speed > 0) ? distance / speed : 0;
+
+        if (duration <= 0)
+        {
+            (float finalSwing, float finalBoom, float finalArm, float finalHand) = CalculateIKAngles(targetPosition, useAlternate);
+            SetArticulationTarget(_swingAb, finalSwing);
+            SetArticulationTarget(_boomAb, finalBoom);
+            SetArticulationTarget(_armAb, finalArm);
+            SetArticulationTarget(_handAb, finalHand);
+            SetArticulationTarget(_wristAb, isAlignedToTable ? finalSwing - 90 : finalSwing);
+            _lastTargetPosition = targetPosition;
+            return;
+        }
+
+        float elapsedTime = 0f;
+        float previousSwingTarget = _swingAb.xDrive.target; // Initialize with the current angle
+
+        try
+        {
+            while (elapsedTime < duration)
+            {
+                token.ThrowIfCancellationRequested();
+
+                float t = elapsedTime / duration;
+                if (useEaseinEaseout)
+                {
+                    t = Mathf.SmoothStep(0f, 1f, t);
+                }
+
+                Vector3 intermediatePoint = Vector3.Lerp(startPosition, targetPosition, t);
+
+                (float swingTarget, float boomTarget, float armTarget, float handTarget) = CalculateIKAngles(intermediatePoint, useAlternate);
+
+                // --- Angle Unwrapping for Swing Joint ---
+                // The Atan2 function in the IK calculation returns an angle between -180 and +180 degrees.
+                // If the robot's path crosses this 180-degree seam, the target angle can suddenly jump
+                // from +179 to -179 degrees. A simple interpolation would then try to move the arm the
+                // "long way around" (a nearly 360-degree turn). This "unwrapping" logic ensures the
+                // robot always takes the shortest path for the swing joint.
+                while (Mathf.Abs(swingTarget - previousSwingTarget) > 180.0f)
+                {
+                    if (swingTarget > previousSwingTarget)
+                        swingTarget -= 360.0f;
+                    else
+                        swingTarget += 360.0f;
+                }
+                previousSwingTarget = swingTarget;
+
+                // Set targets directly without using MoveToTargets to avoid nested async loops and ensure linear path
+                SetArticulationTarget(_swingAb, swingTarget);
+                SetArticulationTarget(_boomAb, boomTarget);
+                SetArticulationTarget(_armAb, armTarget);
+                SetArticulationTarget(_handAb, handTarget);
+                SetArticulationTarget(_wristAb, isAlignedToTable ? swingTarget - 90 : swingTarget);
+
+                elapsedTime += Time.deltaTime;
+                await Task.Yield();
+            }
+
+            // Final movement to the target to ensure it reaches the destination
+            (float finalSwing, float finalBoom, float finalArm, float finalHand) = CalculateIKAngles(targetPosition, useAlternate);
+            SetArticulationTarget(_swingAb, finalSwing);
+            SetArticulationTarget(_boomAb, finalBoom);
+            SetArticulationTarget(_armAb, finalArm);
+            SetArticulationTarget(_handAb, finalHand);
+            SetArticulationTarget(_wristAb, isAlignedToTable ? finalSwing - 90 : finalSwing);
+            _lastTargetPosition = targetPosition;
+        }
+        catch (TaskCanceledException)
+        {
+            // Gracefully handle task cancellation
+        }
+    }
+
     // --- Private Helper Methods ---
+
+    /// <summary>
+    /// Calculates the necessary joint angles for the robot arm to reach a given target position
+    /// using 2D planar inverse kinematics.
+    /// </summary>
+    /// <param name="targetPosition">The target position for the end effector in the robot's local space.</param>
+    /// <returns>A tuple containing the calculated target angles (in degrees) for the swing, boom, arm, and hand joints.</returns>
+    private (float swing, float boom, float arm, float hand) CalculateIKAngles(Vector3 targetPosition, bool useAlternate = false)
+    {
+        Vector3 A = targetPosition;
+
+        // --- 2D Planar Inverse Kinematics Calculation --- //
+        float theta1 = Mathf.Atan2(A.z, A.x);
+        float AC = Mathf.Sqrt(A.x * A.x + A.z * A.z);
+        float val = AB / AC;
+        if (val > 1.0f || val < -1.0f)
+        {
+            Debug.LogWarning($"Target position {targetPosition} is unreachable. AC is too small.");
+            // Return current angles to avoid movement
+            return (_swingAb.xDrive.target, _boomAb.xDrive.target, _armAb.xDrive.target, _handAb.xDrive.target);
+        }
+        float theta3 = Mathf.Asin(val);
+        float BC = AC * Mathf.Cos(theta3);
+        float theta2 = theta1 - theta3;
+        float GF = HAND_AND_WRISTE_SIZE + _toolSize - CD + A.y;
+        float r = Mathf.Sqrt(BC * BC + GF * GF);
+
+        // Check if the target is reachable
+        if (r > FE + ED)
+        {
+            Debug.LogWarning($"Target position {targetPosition} is unreachable. r ({r}) > FE ({FE}) + ED ({ED})");
+            // Return current angles to avoid movement
+            return (_swingAb.xDrive.target, _boomAb.xDrive.target, _armAb.xDrive.target, _handAb.xDrive.target);
+        }
+
+        // Use law of cosines to solve for the angles of the triangle formed by the boom, arm, and the line 'r'.
+        // Clamp the arguments to Acos to prevent NaN errors due to floating point inaccuracies.
+        float theta6 = Mathf.Acos(Mathf.Clamp((FE * FE - ED * ED - r * r) / (-2 * ED * r), -1.0f, 1.0f));
+        float theta7 = Mathf.Acos(Mathf.Clamp((r * r - FE * FE - ED * ED) / (-2 * FE * ED), -1.0f, 1.0f));
+
+        // The IK problem has two solutions (elbow up/down). 'useAlternate' allows us to choose one.
+        // We negate the angles to get the other valid configuration.
+        if (useAlternate)
+        {
+            theta6 = -theta6;
+            theta7 = -theta7;
+        }
+        float theta5 = Mathf.Atan2(GF, BC);
+        float theta4 = theta5 + theta6;
+        float theta8 = 3 * Mathf.PI / 2 - theta4 - theta7;
+
+        return (-theta2 * Mathf.Rad2Deg, -theta4 * Mathf.Rad2Deg, theta7 * Mathf.Rad2Deg, theta8 * Mathf.Rad2Deg);
+    }
 
     /// <summary>
     /// A helper function to set the target position for a given articulation body's primary drive (xDrive).
