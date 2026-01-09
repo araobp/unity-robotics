@@ -2,7 +2,7 @@
 
 ## Scenes
 
-- Main : HingeJointを使った実装
+- Main : HingeJointを使った実装(Implementation using HingeJoint)
 - MainArticulated : ArticulationBodyを使った実装＝＞こちらをお勧め
 
 ## Qiita (Japanese Tech Blog Site)
