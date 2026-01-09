@@ -119,11 +119,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &43721343 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 7343292697423643164, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
-  m_PrefabInstance: {fileID: 1292015821}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &131571065
 GameObject:
   m_ObjectHideFlags: 0
@@ -263,11 +258,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 693024123}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &234792754 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 3496272900748037438, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
-  m_PrefabInstance: {fileID: 1292015821}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &319202172
 GameObject:
   m_ObjectHideFlags: 0
@@ -460,9 +450,19 @@ Transform:
   - {fileID: 131571070}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
+--- !u!1 &1013355548 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -7444783512725572324, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+  m_PrefabInstance: {fileID: 1292015821}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1068617726 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+  m_PrefabInstance: {fileID: 1292015821}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1228435754 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -9146728586934988543, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
   m_PrefabInstance: {fileID: 1292015821}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1292015821
@@ -693,6 +693,11 @@ Skybox:
   m_GameObject: {fileID: 1502596539}
   m_Enabled: 1
   m_CustomSkybox: {fileID: 0}
+--- !u!1 &1613844833 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -6451255038869436148, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+  m_PrefabInstance: {fileID: 1292015821}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1617309291
 GameObject:
   m_ObjectHideFlags: 0
@@ -1098,19 +1103,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RobotTest
   work: {fileID: 131571065}
-  swingAxis: {fileID: 1857467192}
-  boomAxis: {fileID: 43721343}
-  armAxis: {fileID: 234792754}
-  handAxis: {fileID: 1844999233}
+  j1: {fileID: 1228435754}
+  j2: {fileID: 1613844833}
+  j3: {fileID: 1013355548}
+  j5: {fileID: 1978610858}
   ikMoveDuration: 1
---- !u!1 &1844999233 stripped
+--- !u!1 &1978610858 stripped
 GameObject:
-  m_CorrespondingSourceObject: {fileID: -361032919163777179, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
-  m_PrefabInstance: {fileID: 1292015821}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &1857467192 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: -3166005908105945562, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
+  m_CorrespondingSourceObject: {fileID: 4487511151389047459, guid: bc859c7163f924a38bf55be8b163a4a2, type: 3}
   m_PrefabInstance: {fileID: 1292015821}
   m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807

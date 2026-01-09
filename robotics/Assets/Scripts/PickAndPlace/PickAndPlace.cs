@@ -141,8 +141,8 @@ public class PickAndPlace : MonoBehaviour
     private float _toolSize = 0f;
 
     // A small vertical offset added to target positions to ensure the gripper doesn't collide with the table
-    // or the object itself. This margin provides a safe clearance.
-    Vector3 TCP_MARGIN = new Vector3(0f, 0.01f, 0f);
+    // or the object itself. This offset provides a safe clearance.
+    Vector3 TCP_OFFSET = new Vector3(0f, 0.01f, 0f);
     const float FE = 0.49727f;
     const float ED = 0.70142f;
 
@@ -512,7 +512,7 @@ public class PickAndPlace : MonoBehaviour
         await Open(targetAngularVelocity);
 
         // 3. Move down to the object to be picked.
-        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y, pickPos.z) + TCP_MARGIN;
+        Vector3 pickPositionAt = new Vector3(pickPos.x, pickPos.y, pickPos.z) + TCP_OFFSET;
         await PerformIK(pickPositionAt);
 
         // 4. Close the gripper to pick up the object.
@@ -528,7 +528,7 @@ public class PickAndPlace : MonoBehaviour
         await PerformIK(placePositionLift);
 
         // 7. Move down to the place position.
-        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z) + TCP_MARGIN;
+        Vector3 placePositionAbove = new Vector3(placePos.x, placePos.y + 0.15f, placePos.z) + TCP_OFFSET;
         await PerformIK(placePositionAbove);
 
         // 8. Open the gripper to release the object.

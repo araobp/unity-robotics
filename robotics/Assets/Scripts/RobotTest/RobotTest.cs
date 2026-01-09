@@ -15,10 +15,10 @@ public class RobotTest : MonoBehaviour
 
     // GameObjects representing the robot's joints.
     [Header("Robot Joints")]
-    [SerializeField] GameObject swingAxis;
-    [SerializeField] GameObject boomAxis;
-    [SerializeField] GameObject armAxis;
-    [SerializeField] GameObject handAxis;
+    [SerializeField] GameObject j1;
+    [SerializeField] GameObject j2;
+    [SerializeField] GameObject j3;
+    [SerializeField] GameObject j5;
 
     // Inverse kinematics behavior settings.
     [Header("IK Settings")]
@@ -29,19 +29,19 @@ public class RobotTest : MonoBehaviour
     private CancellationTokenSource _ikMoveCts;
 
     // Stores the initial rotation of each joint, allowing for relative calculations.
-    Quaternion initialSwingRotation;
-    Quaternion initialBoomRotation;
-    Quaternion initialArmRotation;
-    Quaternion initialHandRotation;
+    Quaternion initialJ1Rotation;
+    Quaternion initialJ2Rotation;
+    Quaternion initialJ3Rotation;
+    Quaternion initialJ5Rotation;
 
     // Called once before the first frame update. Initializes the robot's joint rotations and schedules the first IK calculation.
     void Start()
     {
         // Capture the initial local rotation of each bone.
-        initialSwingRotation = swingAxis.transform.localRotation;
-        initialBoomRotation = boomAxis.transform.localRotation;
-        initialArmRotation = armAxis.transform.localRotation;
-        initialHandRotation = handAxis.transform.localRotation;
+        initialJ1Rotation = j1.transform.localRotation;
+        initialJ2Rotation = j2.transform.localRotation;
+        initialJ3Rotation = j3.transform.localRotation;
+        initialJ5Rotation = j5.transform.localRotation;
 
         // Set the initial pose of the robot arm.
         setPose(Mathf.PI/2, Mathf.PI/2, Mathf.PI/2, Mathf.PI/2);
@@ -112,9 +112,9 @@ public class RobotTest : MonoBehaviour
         Debug.Log("Theta8: " + (theat8 * Mathf.Rad2Deg).ToString("F4"));
 
         // Log the initial rotation values for debugging.
-        Debug.Log($"{initialSwingRotation.y}, {initialSwingRotation.z}");
-        Debug.Log($"{initialBoomRotation.y}, {initialBoomRotation.z}");
-        Debug.Log($"{initialArmRotation.y}, {initialArmRotation.z}");
+        Debug.Log($"{initialJ1Rotation.y}, {initialJ1Rotation.z}");
+        Debug.Log($"{initialJ2Rotation.y}, {initialJ2Rotation.z}");
+        Debug.Log($"{initialJ3Rotation.y}, {initialJ3Rotation.z}");
 
         // Cancel any existing movement task before starting a new one.
         if (_ikMoveCts != null)
@@ -126,41 +126,41 @@ public class RobotTest : MonoBehaviour
         // Create a new CancellationTokenSource and start the movement task.
         _ikMoveCts = new CancellationTokenSource();
         var newTargets = CalculateTargetPose(theta2, theat4, theat7, theat8);
-        await MoveToTargets(newTargets.swing, newTargets.boom, newTargets.arm, newTargets.hand, ikMoveDuration, _ikMoveCts.Token);
+        await MoveToTargets(newTargets.j1Q, newTargets.j2Q, newTargets.j3Q, newTargets.j5Q, ikMoveDuration, _ikMoveCts.Token);
     }
 
     // Directly sets the pose of the robot arm's joints to the specified angles.
-    void setPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
+    void setPose(float j1Angle, float j2Angle, float j3Angle, float j5Angle)
     {
         // Apply rotations relative to the initial orientation of each joint.
-        swingAxis.transform.localRotation = initialSwingRotation * Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
-        boomAxis.transform.localRotation = initialBoomRotation * Quaternion.AngleAxis(boomAngle * Mathf.Rad2Deg, -Vector3.up);
-        armAxis.transform.localRotation = initialArmRotation * Quaternion.AngleAxis(armAngle * Mathf.Rad2Deg, Vector3.up);
-        handAxis.transform.localRotation = initialHandRotation * Quaternion.AngleAxis(handAngle * Mathf.Rad2Deg, Vector3.up);
+        j1.transform.localRotation = initialJ1Rotation * Quaternion.AngleAxis(j1Angle * Mathf.Rad2Deg, -Vector3.up);
+        j2.transform.localRotation = initialJ2Rotation * Quaternion.AngleAxis(j2Angle * Mathf.Rad2Deg, -Vector3.up);
+        j3.transform.localRotation = initialJ3Rotation * Quaternion.AngleAxis(j3Angle * Mathf.Rad2Deg, Vector3.up);
+        j5.transform.localRotation = initialJ5Rotation * Quaternion.AngleAxis(j5Angle * Mathf.Rad2Deg, Vector3.up);
 
-        // When setting the pose directly, also update the target rotations to prevent unintended smooth movements by Update().
-        var newTargets = CalculateTargetPose(swingAngle, boomAngle, armAngle, handAngle);
+        // Calculate the target pose (unused here as we are setting rotation directly).
+        var newTargets = CalculateTargetPose(j1Angle, j2Angle, j3Angle, j5Angle);
     }
 
     // Calculates the target rotations determined by the IK solver.
-    (Quaternion swing, Quaternion boom, Quaternion arm, Quaternion hand) CalculateTargetPose(float swingAngle, float boomAngle, float armAngle, float handAngle)
+    (Quaternion j1Q, Quaternion j2Q, Quaternion j3Q, Quaternion j5Q) CalculateTargetPose(float j1Angle, float j2Angle, float j3Angle, float j5Angle)
     {
         // Calculate the target rotation for each joint relative to its initial orientation.
-        var swing = initialSwingRotation * Quaternion.AngleAxis(swingAngle * Mathf.Rad2Deg, -Vector3.up);
-        var boom = initialBoomRotation * Quaternion.AngleAxis(boomAngle * Mathf.Rad2Deg, -Vector3.up);
-        var arm = initialArmRotation * Quaternion.AngleAxis(armAngle * Mathf.Rad2Deg, Vector3.up);
-        var hand = initialHandRotation * Quaternion.AngleAxis(handAngle * Mathf.Rad2Deg, Vector3.up);
-        return (swing, boom, arm, hand);
+        var j1Q = initialJ1Rotation * Quaternion.AngleAxis(j1Angle * Mathf.Rad2Deg, -Vector3.up);
+        var j2Q = initialJ2Rotation * Quaternion.AngleAxis(j2Angle * Mathf.Rad2Deg, -Vector3.up);
+        var j3Q = initialJ3Rotation * Quaternion.AngleAxis(j3Angle * Mathf.Rad2Deg, Vector3.up);
+        var j5Q = initialJ5Rotation * Quaternion.AngleAxis(j5Angle * Mathf.Rad2Deg, Vector3.up);
+        return (j1Q, j2Q, j3Q, j5Q);
     }
 
     // Asynchronously moves the robot's joints smoothly from their current rotation to the target rotations over a specified duration.
-    private async Task MoveToTargets(Quaternion swingTarget, Quaternion boomTarget, Quaternion armTarget, Quaternion handTarget, float duration, CancellationToken cancellationToken)
+    private async Task MoveToTargets(Quaternion j1Target, Quaternion j2Target, Quaternion j3Target, Quaternion j5Target, float duration, CancellationToken cancellationToken)
     {
         // Capture the starting rotation of each joint.
-        Quaternion startSwing = swingAxis.transform.localRotation;
-        Quaternion startBoom = boomAxis.transform.localRotation;
-        Quaternion startArm = armAxis.transform.localRotation;
-        Quaternion startHand = handAxis.transform.localRotation;
+        Quaternion startJ1Q = j1.transform.localRotation;
+        Quaternion startJ2Q = j2.transform.localRotation;
+        Quaternion startj3Q = j3.transform.localRotation;
+        Quaternion startJ5Q = j5.transform.localRotation;
         float elapsedTime = 0f;
         
         try
@@ -172,10 +172,10 @@ public class RobotTest : MonoBehaviour
 
                 // Interpolate the rotation of each joint using Slerp.
                 float t = elapsedTime / duration;
-                swingAxis.transform.localRotation = Quaternion.Slerp(startSwing, swingTarget, t);
-                boomAxis.transform.localRotation = Quaternion.Slerp(startBoom, boomTarget, t);
-                armAxis.transform.localRotation = Quaternion.Slerp(startArm, armTarget, t);
-                handAxis.transform.localRotation = Quaternion.Slerp(startHand, handTarget, t);
+                j1.transform.localRotation = Quaternion.Slerp(startJ1Q, j1Target, t);
+                j2.transform.localRotation = Quaternion.Slerp(startJ2Q, j2Target, t);
+                j3.transform.localRotation = Quaternion.Slerp(startj3Q, j3Target, t);
+                j5.transform.localRotation = Quaternion.Slerp(startJ5Q, j5Target, t);
                 
                 elapsedTime += Time.deltaTime;
                 // Wait for the next frame before continuing the loop.
@@ -183,10 +183,10 @@ public class RobotTest : MonoBehaviour
             }
 
             // Ensure the final rotation is set exactly to the target in case of any minor timing inaccuracies.
-            swingAxis.transform.localRotation = swingTarget;
-            boomAxis.transform.localRotation = boomTarget;
-            armAxis.transform.localRotation = armTarget;
-            handAxis.transform.localRotation = handTarget;
+            j1.transform.localRotation = j1Target;
+            j2.transform.localRotation = j2Target;
+            j3.transform.localRotation = j3Target;
+            j5.transform.localRotation = j5Target;
         }
         catch (TaskCanceledException)
         {
