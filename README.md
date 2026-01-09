@@ -5,11 +5,13 @@
 
 This project explores AI robot simulation using the Gemini Robotics-ER.
 
-## 1. クレーンゲームロボティクス (Crane Game Robotics)
+## Projects
+
+### 1. クレーンゲームロボティクス (Crane Game Robotics)
 
 => [README](/cranegame)
 
-## 2. 多間接ロボット (Articulated Robot)
+### 2. 多間接ロボット (Articulated Robot)
 
 => [README](/robotics)
 
