@@ -137,9 +137,6 @@ public class RobotTest : MonoBehaviour
         j2.transform.localRotation = initialJ2Rotation * Quaternion.AngleAxis(j2Angle * Mathf.Rad2Deg, -Vector3.up);
         j3.transform.localRotation = initialJ3Rotation * Quaternion.AngleAxis(j3Angle * Mathf.Rad2Deg, Vector3.up);
         j5.transform.localRotation = initialJ5Rotation * Quaternion.AngleAxis(j5Angle * Mathf.Rad2Deg, Vector3.up);
-
-        // Calculate the target pose (unused here as we are setting rotation directly).
-        var newTargets = CalculateTargetPose(j1Angle, j2Angle, j3Angle, j5Angle);
     }
 
     // Calculates the target rotations determined by the IK solver.
