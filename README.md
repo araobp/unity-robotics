@@ -31,12 +31,6 @@ Reasoning, Thinking, and Motion Transfer](https://arxiv.org/pdf/2510.03342)
 
 ## Misc
 
-### Robot Scene in Unity
-
-Work on the robot scene in Unity has recently begun.
-
-https://github.com/user-attachments/assets/5b8cf89e-a132-40f8-8c07-1bc9a24380b4
-
 ### Robot Scene in Godot (Discontinued)
 
 Initially, Godot was considered for this project. However, due to its limitations in 3D capabilities, development was shifted to Unity. While Godot is a preferred engine for many use cases, it was not suitable for the 3D requirements of this simulation.
