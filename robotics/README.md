@@ -3,7 +3,7 @@
 ## Scenes
 
 - GeminiApiTest: Geminiへ生成させたC#向けGemini APIコードの試験(Testing the C# generated Gemini API code)
-- RobotTest: IKの基本動作を試験
+- RobotTest: IKの基本動作を試験(Testing basic IK movements)
 - PickAndPlace：Gemini Robotics-ER 1.5を使ったピック＆プレイスの試験
 
 ## Qiita投稿記事
