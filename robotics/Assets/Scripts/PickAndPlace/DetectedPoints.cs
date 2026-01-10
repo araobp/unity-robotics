@@ -23,6 +23,9 @@ public class DetectedPoints : MonoBehaviour
     /// </summary>
     private List<DetectedObject> _detectedObjects = new List<DetectedObject>();
 
+    /// <summary>
+    /// A list to store the move operations generated from the most recent instruction.
+    /// </summary>
     private List<Move> _moves = new List<Move>();
 
 

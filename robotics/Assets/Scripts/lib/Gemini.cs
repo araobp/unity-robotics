@@ -32,7 +32,9 @@ public class Gemini
         public string GeminiApiKey;
     }
 
-    // Private fields for API endpoints, history management, and logging.
+    /// <summary>
+    /// Private fields for API endpoints, history management, and logging.
+    /// </summary>
     private string _apiEndpoint;
     private string _ttsApiEndpoint;
     private bool _enableHistory = false;
@@ -50,8 +52,6 @@ public class Gemini
         Debug.Log($"DEFAULT OUTPUT: {text}\n\n");
     }
 
-    #region Public Methods
-    #endregion
     #region Public Methods
 
     /// <summary>

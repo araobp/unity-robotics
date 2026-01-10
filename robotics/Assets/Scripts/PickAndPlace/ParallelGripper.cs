@@ -43,11 +43,18 @@ public class ParallelGripper : MonoBehaviour, IEndEffector, IGripper
     /// </summary>
     private Collider _plateColliderL;
 
-    // Cached original physics materials for the gripper plates.
+    /// <summary>
+    /// Cached original physics material for the right gripper plate.
+    /// </summary>
     private PhysicsMaterial _originalPlateMaterialR;
+    /// <summary>
+    /// Cached original physics material for the left gripper plate.
+    /// </summary>
     private PhysicsMaterial _originalPlateMaterialL;
 
-    // A dynamically created physics material with high friction, applied to the gripper plates when holding an object to ensure a stable grip.
+    /// <summary>
+    /// A dynamically created physics material with high friction, applied to the gripper plates when holding an object to ensure a stable grip.
+    /// </summary>
     private PhysicsMaterial _strongFrictionMaterial;
 
     // --- Sensor Components ---

@@ -28,11 +28,26 @@ public class CameraCapture : MonoBehaviour
     /// </summary>
     public string LastCaptureBase64 => _lastCaptureBase64;
 
-    float fovHorizontal; // Horizontal field of view (degrees)
-    float fovVertical;   // Vertical field of view (degrees)
-    private float H;           // Camera height (Y)
-    private float L_cam;       // Camera installation position (Z)
-    private float theta;        // Angle of depression (angle measured downward from the horizontal)
+    /// <summary>
+    /// Horizontal field of view in degrees.
+    /// </summary>
+    float fovHorizontal;
+    /// <summary>
+    /// Vertical field of view in degrees.
+    /// </summary>
+    float fovVertical;
+    /// <summary>
+    /// Camera height (Y-axis) relative to the work area.
+    /// </summary>
+    private float H;
+    /// <summary>
+    /// Camera installation position (Z-axis) relative to the work area.
+    /// </summary>
+    private float L_cam;
+    /// <summary>
+    /// Angle of depression (angle measured downward from the horizontal).
+    /// </summary>
+    private float theta;
 
     [Header("Work Area")]
     [SerializeField] GameObject workArea;

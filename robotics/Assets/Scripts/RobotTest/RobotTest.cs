@@ -4,37 +4,51 @@ using System.Threading.Tasks;
 using Vector3 = UnityEngine.Vector3;
 using Quaternion = UnityEngine.Quaternion;
 
-// This class implements inverse kinematics (IK) for a robot arm, calculating the joint angles required to reach a target and smoothly animating the robot's movement.
+/// <summary>
+/// This class implements inverse kinematics (IK) for a robot arm, calculating the joint angles required to reach a target and smoothly animating the robot's movement.
+/// </summary>
 public class RobotTest : MonoBehaviour
 {
     // --- Fields ---
 
-    // The target GameObject that the robot arm's end effector will attempt to reach.
+    /// <summary>
+    /// The target GameObject that the robot arm's end effector will attempt to reach.
+    /// </summary>
     [Header("IK Target")]
     [SerializeField] GameObject work;
 
-    // GameObjects representing the robot's joints.
+    /// <summary>
+    /// GameObjects representing the robot's joints.
+    /// </summary>
     [Header("Robot Joints")]
     [SerializeField] GameObject j1;
     [SerializeField] GameObject j2;
     [SerializeField] GameObject j3;
     [SerializeField] GameObject j5;
 
-    // Inverse kinematics behavior settings.
+    /// <summary>
+    /// Inverse kinematics behavior settings.
+    /// </summary>
     [Header("IK Settings")]
     [Tooltip("The duration in seconds for the IK movement to complete.")]
     [SerializeField] private float ikMoveDuration = 1.0f;
 
-    // A CancellationTokenSource for canceling the in-progress asynchronous movement task.
+    /// <summary>
+    /// A CancellationTokenSource for canceling the in-progress asynchronous movement task.
+    /// </summary>
     private CancellationTokenSource _ikMoveCts;
 
-    // Stores the initial rotation of each joint, allowing for relative calculations.
+    /// <summary>
+    /// Stores the initial rotation of each joint, allowing for relative calculations.
+    /// </summary>
     Quaternion initialJ1Rotation;
     Quaternion initialJ2Rotation;
     Quaternion initialJ3Rotation;
     Quaternion initialJ5Rotation;
 
-    // Called once before the first frame update. Initializes the robot's joint rotations and schedules the first IK calculation.
+    /// <summary>
+    /// Called once before the first frame update. Initializes the robot's joint rotations and schedules the first IK calculation.
+    /// </summary>
     void Start()
     {
         // Capture the initial local rotation of each bone.
@@ -50,7 +64,9 @@ public class RobotTest : MonoBehaviour
         Invoke("IKTest", 2f);
     }
 
-    // Called when the MonoBehaviour is destroyed.
+    /// <summary>
+    /// Called when the MonoBehaviour is destroyed.
+    /// </summary>
     void OnDestroy()
     {
         // Ensures the CancellationTokenSource is cancelled and disposed to prevent memory leaks.
@@ -58,12 +74,13 @@ public class RobotTest : MonoBehaviour
         _ikMoveCts?.Dispose();
     }
 
-    /* This function is the core implementation of the inverse kinematics (IK) for the robot arm.
-     * It calculates the necessary joint angles (theta values) to position the end effector (hand)
-     * at the target position defined by the 'work' GameObject.
-     * The calculation is based on the geometric relationships of the robot arm's segments,
-     * solving a 2D planar IK problem.
-     */
+    /// <summary>
+    /// This function is the core implementation of the inverse kinematics (IK) for the robot arm.
+    /// It calculates the necessary joint angles (theta values) to position the end effector (hand)
+    /// at the target position defined by the 'work' GameObject.
+    /// The calculation is based on the geometric relationships of the robot arm's segments,
+    /// solving a 2D planar IK problem.
+    /// </summary>
     public async void IKTest()
     {
         // Define the fixed lengths of each segment of the robot arm.
@@ -129,7 +146,9 @@ public class RobotTest : MonoBehaviour
         await MoveToTargets(newTargets.j1Q, newTargets.j2Q, newTargets.j3Q, newTargets.j5Q, ikMoveDuration, _ikMoveCts.Token);
     }
 
-    // Directly sets the pose of the robot arm's joints to the specified angles.
+    /// <summary>
+    /// Directly sets the pose of the robot arm's joints to the specified angles.
+    /// </summary>
     void setPose(float j1Angle, float j2Angle, float j3Angle, float j5Angle)
     {
         // Apply rotations relative to the initial orientation of each joint.
@@ -139,7 +158,9 @@ public class RobotTest : MonoBehaviour
         j5.transform.localRotation = initialJ5Rotation * Quaternion.AngleAxis(j5Angle * Mathf.Rad2Deg, Vector3.up);
     }
 
-    // Calculates the target rotations determined by the IK solver.
+    /// <summary>
+    /// Calculates the target rotations determined by the IK solver.
+    /// </summary>
     (Quaternion j1Q, Quaternion j2Q, Quaternion j3Q, Quaternion j5Q) CalculateTargetPose(float j1Angle, float j2Angle, float j3Angle, float j5Angle)
     {
         // Calculate the target rotation for each joint relative to its initial orientation.
@@ -150,7 +171,9 @@ public class RobotTest : MonoBehaviour
         return (j1Q, j2Q, j3Q, j5Q);
     }
 
-    // Asynchronously moves the robot's joints smoothly from their current rotation to the target rotations over a specified duration.
+    /// <summary>
+    /// Asynchronously moves the robot's joints smoothly from their current rotation to the target rotations over a specified duration.
+    /// </summary>
     private async Task MoveToTargets(Quaternion j1Target, Quaternion j2Target, Quaternion j3Target, Quaternion j5Target, float duration, CancellationToken cancellationToken)
     {
         // Capture the starting rotation of each joint.

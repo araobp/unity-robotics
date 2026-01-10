@@ -10,7 +10,9 @@ public class Coordinate : MonoBehaviour
     TMP_Text y;
     TMP_Text z;
 
-    // Initialize references to the UI text components.
+    /// <summary>
+    /// Initialize references to the UI text components.
+    /// </summary>
     void Start()
     {
         x = transform.Find("X").GetComponent<TMP_Text>();

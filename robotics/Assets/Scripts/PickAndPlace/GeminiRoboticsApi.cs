@@ -61,6 +61,9 @@ public class Vector2IntConverter : JsonConverter<Vector2Int>
 /// </summary>
 public class GeminiRoboticsApi
 {
+    /// <summary>
+    /// The instance of the Gemini client used to communicate with the API.
+    /// </summary>
     Gemini gemini;
 
     /// <summary>

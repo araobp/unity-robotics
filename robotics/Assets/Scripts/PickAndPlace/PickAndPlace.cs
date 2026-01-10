@@ -53,7 +53,7 @@ public class PickAndPlace : MonoBehaviour
     [Tooltip("Whether to visualize trajectories during IK movement.")]
     [SerializeField] bool visualizeTrajectories = false;
 
-    [Tooltip("The workarea")]
+    [Tooltip("The work area")]
     [Header("Work Area")]
     [SerializeField] GameObject workArea;
 
@@ -83,7 +83,7 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] TMP_Dropdown dropdownMenu;
     [SerializeField] GameObject panelObjectDetection;
     [SerializeField] GameObject panelChat;
-    
+
     // UI elements for displaying coordinates.
     [Header("Coordinate Display")]
     [SerializeField] Coordinate coordinateEndEffector;
@@ -94,55 +94,77 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] TMP_InputField chatInputField;
     [SerializeField] TMP_InputField chatOutputField;
 
-    // The Transform representing the precise point of interaction for the end effector,
-    // often located at the center of the gripper's fingers. The IK solver targets this point.
+    /// <summary>
+    /// The Transform representing the precise point of interaction for the end effector,
+    /// often located at the center of the gripper's fingers. The IK solver targets this point.
+    /// </summary>
     private Transform _toolCenterPoint;
 
-    // The last recorded local position of the end effector edge, set by setPose().
+    /// <summary>
+    /// The last recorded local position of the end effector edge, set by setPose().
+    /// </summary>
     private Vector3 _endEffectorEdgeRestPosition;
 
     private TrailRenderer _trailRenderer;
 
-    // UI buttons for triggering robot actions.
+    /// <summary>
+    /// UI buttons for triggering robot actions.
+    /// </summary>
     [Header("Operation buttons")]
     [SerializeField] Button buttonDetect;
     [SerializeField] Button buttonPickAndPlace;
     [SerializeField] Button buttonReset;
 
-    [Tooltip("The label of the object to be detected and picked up.")]
+    /// <summary>
+    /// The label of the object to be detected and picked up.
+    /// </summary>
     [Header("Detection target")]
     [SerializeField] string detectionTargetLabel = "cube";
 
-    // References to other components used for detection and display.
+    /// <summary>
+    /// References to other components used for detection and display.
+    /// </summary>
     [Header("Components")]
     [SerializeField] private CameraCapture cameraCapture;
     [SerializeField] private DetectedPoints detectedPoints;
 
-    // API for interacting with the Gemini Robotics service.
+    /// <summary>
+    /// API for interacting with the Gemini Robotics service.
+    /// </summary>
     private GeminiRoboticsApi _geminiRoboticsApi;
 
-    // A collection to store the workpieces detected by the vision system.
+    /// <summary>
+    /// A collection to store the workpieces detected by the vision system.
+    /// </summary>
     private IEnumerable<DetectedObject> _detectedWorkpieces;
 
-    // Used to cancel the in-progress asynchronous movement task.
+    /// <summary>
+    /// Used to cancel the in-progress asynchronous movement task.
+    /// </summary>
     private CancellationTokenSource _ikMoveCts;
 
-    // Cached ArticulationBody components for each joint.
+    /// <summary>
+    /// Cached ArticulationBody components for each joint.
+    /// </summary>
     private ArticulationBody _j1Ab;
     private ArticulationBody _j2Ab;
     private ArticulationBody _j3Ab;
     private ArticulationBody _j5Ab;
     private ArticulationBody _j6Ab;
 
-    // Robot arm segment lengths (in meters).
+    /// <summary>
+    /// Robot arm segment lengths (in meters).
+    /// </summary>
     private float _AB;
     private float _CD;
     private float _FE;
     private float _ED;
     private float _BF;
 
-    // A small vertical offset added to target positions to ensure the gripper doesn't collide with the table
-    // or the object itself. This offset provides a safe clearance.
+    /// <summary>
+    /// A small vertical offset added to target positions to ensure the gripper doesn't collide with the table
+    /// or the object itself. This offset provides a safe clearance.
+    /// </summary>
     Vector3 TCP_OFFSET = new Vector3(0f, 0.01f, 0f);
 
     // --- Unity Lifecycle Methods ---
@@ -193,10 +215,6 @@ public class PickAndPlace : MonoBehaviour
         {
             // Set the initial pose of the robot arm.
             await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, isAlignedToTable ? 0 : Mathf.PI / 2);
-
-            // Enable or disable the trail renderer based on the visualization setting.
-            _trailRenderer.Clear();
-            _trailRenderer.enabled = visualizeTrajectories;
 
             // If in test mode, trigger the IK test sequence after a short delay.
             if (ikTestMode)
@@ -516,6 +534,10 @@ public class PickAndPlace : MonoBehaviour
     /// <param name="placePos">The position where the object will be placed.</param>
     private async Task PerformPickAndPlace(Vector3 pickPos, Vector3 placePos)
     {
+        // Enable or disable the trail renderer based on the visualization setting.
+        _trailRenderer.Clear();
+        _trailRenderer.enabled = visualizeTrajectories;
+
         // 1. Move to a safe position above the object.
         Vector3 pickPositionAbove = new Vector3(pickPos.x, pickPos.y + 0.2f, pickPos.z);
         await PerformIK(pickPositionAbove);
@@ -575,7 +597,7 @@ public class PickAndPlace : MonoBehaviour
         SetArticulationTarget(_j5Ab, j5Angle * Mathf.Rad2Deg);
         SetArticulationTarget(_j6Ab, -j6Angle * Mathf.Rad2Deg);
         // Wait for a short period to allow the joints to settle.
-        await Task.Delay(100);
+        await Task.Delay(1000);
 
         // Memorize the end effector's local position after setting the pose.
         _endEffectorEdgeRestPosition = workArea.transform.InverseTransformPoint(_toolCenterPoint.position);
