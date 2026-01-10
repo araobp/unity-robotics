@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine.UI;
 using TMPro;
+using System.Globalization;
 
 /// <summary>
 /// This class manages the behavior of a 6-axis robot arm, including inverse kinematics (IK) for movement,
@@ -49,6 +50,9 @@ public class PickAndPlace : MonoBehaviour
     [Tooltip("Whether to use Ease-in/Ease-out interpolation for smoother movement.")]
     [SerializeField] bool useEaseinEaseout = true;
 
+    [Tooltip("Whether to visualize trajectories during IK movement.")]
+    [SerializeField] bool visualizeTrajectories = false;
+
     [Tooltip("The workarea")]
     [Header("Work Area")]
     [SerializeField] GameObject workArea;
@@ -58,6 +62,7 @@ public class PickAndPlace : MonoBehaviour
     [SerializeField] GameObject j1;
     [SerializeField] GameObject j2;
     [SerializeField] GameObject j3;
+    [SerializeField] GameObject j4;
     [SerializeField] GameObject j5;
     [SerializeField] GameObject j6;
 
@@ -74,11 +79,11 @@ public class PickAndPlace : MonoBehaviour
     [Tooltip("The angular velocity of the gripper when opening or closing.")]
     [SerializeField] float targetAngularVelocity = 30.0f;
 
-
     [Header("Menu and Panels")]
     [SerializeField] TMP_Dropdown dropdownMenu;
     [SerializeField] GameObject panelObjectDetection;
     [SerializeField] GameObject panelChat;
+    
     // UI elements for displaying coordinates.
     [Header("Coordinate Display")]
     [SerializeField] Coordinate coordinateEndEffector;
@@ -96,10 +101,7 @@ public class PickAndPlace : MonoBehaviour
     // The last recorded local position of the end effector edge, set by setPose().
     private Vector3 _endEffectorEdgeRestPosition;
 
-    // The last commanded target position for the end effector. This is used to ensure smooth transitions
-    // between movements by starting new trajectories from the last intended destination, rather than the
-    // current physical position, which may have a slight "gravity sag".
-    private Vector3 _lastTargetPosition;
+    private TrailRenderer _trailRenderer;
 
     // UI buttons for triggering robot actions.
     [Header("Operation buttons")]
@@ -133,18 +135,15 @@ public class PickAndPlace : MonoBehaviour
     private ArticulationBody _j6Ab;
 
     // Robot arm segment lengths (in meters).
-    const float AB = 0.1689f;
-    const float CD = 0.27312f;
-    const float HAND_AND_WRIST_SIZE = 0.17259f;
-
-    // Tool size attached to the wrist of the end effector
-    private float _toolSize = 0f;
+    private float _AB;
+    private float _CD;
+    private float _FE;
+    private float _ED;
+    private float _BF;
 
     // A small vertical offset added to target positions to ensure the gripper doesn't collide with the table
     // or the object itself. This offset provides a safe clearance.
     Vector3 TCP_OFFSET = new Vector3(0f, 0.01f, 0f);
-    const float FE = 0.49727f;
-    const float ED = 0.70142f;
 
     // --- Unity Lifecycle Methods ---
 
@@ -163,8 +162,19 @@ public class PickAndPlace : MonoBehaviour
 
         // Calculate the tool size based on the wrist position and the tool center point obtained from the end effector.
         _toolCenterPoint = endEffector.GetComponent<IEndEffector>().ToolCenterPoint;
-        _toolSize = (j6.transform.position - _toolCenterPoint.position).magnitude;
-        Debug.Log("End Effector Size: " + _toolSize);
+
+        _AB = Mathf.Abs(Vector3.Dot(_toolCenterPoint.position - j5.transform.position, j5.transform.up));
+        _CD = (j2.transform.position - j1.transform.position).magnitude;
+        _ED = Mathf.Abs(Vector3.Dot(j3.transform.position - j2.transform.position, j3.transform.right));
+        _FE = (j5.transform.position - j4.transform.position).magnitude;
+        _BF = Mathf.Abs(Vector3.Dot(_toolCenterPoint.position - j5.transform.position, j5.transform.right));
+
+        // Add a TrailRenderer to visualize the path of the end effector.
+        _trailRenderer = _toolCenterPoint.gameObject.AddComponent<TrailRenderer>();
+        _trailRenderer.startWidth = 0.003f;
+        _trailRenderer.endWidth = 0.003f;
+        _trailRenderer.minVertexDistance = 0.003f;
+        _trailRenderer.time = 1000;
 
         // Instantiate the GeminiRoboticsApi
         _geminiRoboticsApi = new GeminiRoboticsApi();
@@ -183,6 +193,10 @@ public class PickAndPlace : MonoBehaviour
         {
             // Set the initial pose of the robot arm.
             await setPose(Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, Mathf.PI / 2, isAlignedToTable ? 0 : Mathf.PI / 2);
+
+            // Enable or disable the trail renderer based on the visualization setting.
+            _trailRenderer.Clear();
+            _trailRenderer.enabled = visualizeTrajectories;
 
             // If in test mode, trigger the IK test sequence after a short delay.
             if (ikTestMode)
@@ -211,7 +225,6 @@ public class PickAndPlace : MonoBehaviour
     /// </summary>
     void FixedUpdate()
     {
-        // The gripping logic is now handled by the ParallelGripper script.
     }
 
     /// <summary>
@@ -304,7 +317,6 @@ public class PickAndPlace : MonoBehaviour
             }
 
             await MoveToTargets(j1Target, j2Target, j3Target, j5Target, moveDuration, _ikMoveCts.Token);
-            _lastTargetPosition = targetPosition;
         }
     }
 
@@ -567,7 +579,6 @@ public class PickAndPlace : MonoBehaviour
 
         // Memorize the end effector's local position after setting the pose.
         _endEffectorEdgeRestPosition = workArea.transform.InverseTransformPoint(_toolCenterPoint.position);
-        _lastTargetPosition = _endEffectorEdgeRestPosition;
     }
 
     /// <summary>
@@ -588,14 +599,14 @@ public class PickAndPlace : MonoBehaviour
         float j3Start = _j3Ab.xDrive.target;
         float j4Start = _j5Ab.xDrive.target;
 
-    // Unwrap J1 angle to ensure the shortest path is taken.
-    while (Mathf.Abs(j1Target - j1Start) > 180.0f)
-    {
-        if (j1Target > j1Start)
-            j1Target -= 360.0f;
-        else
-            j1Target += 360.0f;
-    }
+        // Unwrap J1 angle to ensure the shortest path is taken.
+        while (Mathf.Abs(j1Target - j1Start) > 180.0f)
+        {
+            if (j1Target > j1Start)
+                j1Target -= 360.0f;
+            else
+                j1Target += 360.0f;
+        }
 
         // Keep track of the time elapsed during the movement.
         float elapsedTime = 0f;
@@ -655,20 +666,7 @@ public class PickAndPlace : MonoBehaviour
     private async Task MoveToTargetLinearly(Vector3 targetPosition, float speed, CancellationToken token)
     {
         // We read the arm's current physical position to determine the starting point of the movement.
-        Vector3 startPosition = workArea.transform.InverseTransformPoint(this._toolCenterPoint.position);
-
-        // --- Gravity Sag Compensation ---
-        // If the robot arm is holding a position, its actual physical location might be slightly
-        // lower than its commanded target position due to "gravity sag" or "droop".
-        // If we start a new movement from this slightly sagged physical position, the physics controller
-        // might lose its "holding force", causing a small drop or jerk at the start of the new movement.
-        // To prevent this, we check if the current physical position is reasonably close to the last
-        // *commanded* target position. If it is, we start the new movement from that last commanded
-        // target, ensuring a smooth, continuous trajectory without the jerk.
-        if (Vector3.Distance(startPosition, _lastTargetPosition) < 0.1f)
-        {
-            startPosition = _lastTargetPosition;
-        }
+        Vector3 startPosition = workArea.transform.InverseTransformPoint(_toolCenterPoint.position);
 
         float distance = Vector3.Distance(startPosition, targetPosition);
 
@@ -700,7 +698,6 @@ public class PickAndPlace : MonoBehaviour
             SetArticulationTarget(_j3Ab, finalJ3);
             SetArticulationTarget(_j5Ab, finalJ5);
             SetArticulationTarget(_j6Ab, isAlignedToTable ? finalJ1 - 90 : finalJ1);
-            _lastTargetPosition = targetPosition;
             return;
         }
 
@@ -756,7 +753,6 @@ public class PickAndPlace : MonoBehaviour
             SetArticulationTarget(_j3Ab, finalJ3);
             SetArticulationTarget(_j5Ab, finalJ5);
             SetArticulationTarget(_j6Ab, isAlignedToTable ? finalJ1 - 90 : finalJ1);
-            _lastTargetPosition = targetPosition;
         }
         catch (TaskCanceledException)
         {
@@ -782,7 +778,7 @@ public class PickAndPlace : MonoBehaviour
         // Calculate the horizontal distance to the target.
         float AC = Mathf.Sqrt(A.x * A.x + A.z * A.z);
         // Calculate the offset angle due to the shoulder's horizontal offset (AB).
-        float val = AB / AC;
+        float val = _AB / AC;
         if (val > 1.0f || val < -1.0f)
         {
             Debug.LogWarning($"Target position {targetPosition} is unreachable. AC is too small.");
@@ -795,22 +791,22 @@ public class PickAndPlace : MonoBehaviour
         float theta2 = theta1 - theta3;
         // Calculate the vertical distance from the shoulder pivot to the wrist (GF).
         // CD is the height of the shoulder pivot.
-        float GF = HAND_AND_WRIST_SIZE + _toolSize - CD + A.y;
+        float GF = _BF - _CD + A.y;
         // Calculate the direct distance from shoulder to wrist (r).
         float r = Mathf.Sqrt(BC * BC + GF * GF);
 
         // Check if the target is reachable
-        if (r > FE + ED)
+        if (r > _FE + _ED)
         {
-            Debug.LogWarning($"Target position {targetPosition} is unreachable. r ({r}) > FE ({FE}) + ED ({ED})");
+            Debug.LogWarning($"Target position {targetPosition} is unreachable. r ({r}) > FE ({_FE}) + ED ({_ED})");
             // Return current angles to avoid movement
             return (_j1Ab.xDrive.target, _j2Ab.xDrive.target, _j3Ab.xDrive.target, _j5Ab.xDrive.target);
         }
 
         // Use law of cosines to solve for the angles of the triangle formed by J2, J3, and the line 'r'.
         // Clamp the arguments to Acos to prevent NaN errors due to floating point inaccuracies.
-        float theta6 = Mathf.Acos(Mathf.Clamp((FE * FE - ED * ED - r * r) / (-2 * ED * r), -1.0f, 1.0f));
-        float theta7 = Mathf.Acos(Mathf.Clamp((r * r - FE * FE - ED * ED) / (-2 * FE * ED), -1.0f, 1.0f));
+        float theta6 = Mathf.Acos(Mathf.Clamp((_FE * _FE - _ED * _ED - r * r) / (-2 * _ED * r), -1.0f, 1.0f));
+        float theta7 = Mathf.Acos(Mathf.Clamp((r * r - _FE * _FE - _ED * _ED) / (-2 * _FE * _ED), -1.0f, 1.0f));
 
         // The IK problem has two solutions (elbow up/down). 'useAlternate' allows us to choose one.
         // We negate the angles to get the other valid configuration.

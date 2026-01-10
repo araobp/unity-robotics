@@ -6864,6 +6864,8 @@ MonoBehaviour:
   ikLinearSpeed: 0.3
   ikJointAngularSpeed: 60
   useEaseinEaseout: 1
+  gravitySagCompensation: 0
+  visualizeTrajectories: 1
   workArea: {fileID: 1403536110}
   j1: {fileID: 1884179395}
   j2: {fileID: 368233474}
