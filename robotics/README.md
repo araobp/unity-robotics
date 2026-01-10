@@ -1,10 +1,14 @@
-# 多間接ロボット (Articulated Robot)
+# 多間接ロボット / Articulated Robot
 
 ## Scenes
 
-- GeminiApiTest: Geminiへ生成させたC#向けGemini APIコードの試験(Testing the C# generated Gemini API code)
-- RobotTest: IKの基本動作を試験(Testing basic IK movements)
-- PickAndPlace：Gemini Robotics-ER 1.5を使ったピック＆プレイスの試験(Pick and place test using Gemini Robotics-ER 1.5)
+- GeminiApiTest: Geminiへ生成させたC#向けGemini APIコードの試験 / Testing the C# generated Gemini API code
+- RobotTest: IKの基本動作を試験 / Testing basic IK movements
+- PickAndPlace：Gemini Robotics-ER 1.5を使ったピック＆プレイスの試験 / Pick and place test using Gemini Robotics-ER 1.5
+
+## Gemini API Keyの設定 / Setting Gemini API Key
+
+Resources/gemini_api_key.txt へAPIキーを書き込みます / Write the API key to Resources/gemini_api_key.txt.
 
 ## Qiita投稿記事
 
