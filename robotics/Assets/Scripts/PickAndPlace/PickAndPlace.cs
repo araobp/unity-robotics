@@ -597,7 +597,7 @@ public class PickAndPlace : MonoBehaviour
         SetArticulationTarget(_j5Ab, j5Angle * Mathf.Rad2Deg);
         SetArticulationTarget(_j6Ab, -j6Angle * Mathf.Rad2Deg);
         // Wait for a short period to allow the joints to settle.
-        await Task.Delay(1000);
+        await Task.Delay(2000);
 
         // Memorize the end effector's local position after setting the pose.
         _endEffectorEdgeRestPosition = workArea.transform.InverseTransformPoint(_toolCenterPoint.position);
