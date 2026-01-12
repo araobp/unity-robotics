@@ -50,7 +50,8 @@ public class PressureSensor : MonoBehaviour
     {
         _isColliding = true;
         CalculateForceAndPressure(collision);
-        _lastMass = collision.rigidbody.mass;
+        if (collision.rigidbody != null)
+            _lastMass = collision.rigidbody.mass;
         var col = GetComponent<Collider>();
         _lastFriction = (collision.collider.material.staticFriction + col.material.staticFriction) / 2.0f;
         _contactObject = collision.gameObject;

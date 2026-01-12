@@ -1,6 +1,8 @@
 using UnityEngine;
 using System;
 using UnityEngine.UI;
+using System.Runtime.Serialization;
+using System.Collections.Generic;
 
 /// <summary>
 /// Handles camera operations, including capturing images and projecting 2D image coordinates
@@ -13,6 +15,10 @@ public class CameraCapture : MonoBehaviour
 {
     [Tooltip("The camera to capture the image from. If not set, it will default to the main camera.")]
     [SerializeField] private Camera captureCamera;
+    [SerializeField] private bool isDepthCamera = false;
+    [SerializeField] private float raycastSpacing = 0.03f;
+    [SerializeField] private bool showDebugRay = false;
+
     public int ImageWidth => _imageWidth;
     public int ImageHeight => _imageHeight;
     private int _imageWidth;
@@ -174,27 +180,86 @@ public class CameraCapture : MonoBehaviour
         float u_prime = u - ImageWidth * 0.5f;
         float v_prime = ImageHeight * 0.5f - v;
 
-        // Calculate the vertical (alpha) and horizontal (beta) angles of the pixel relative to the camera's forward axis.
-        float alpha = Mathf.Atan((v_prime / (ImageHeight * 0.5f)) * Mathf.Tan(fovVertical * 0.5f * Mathf.Deg2Rad));
-        float beta = Mathf.Atan((u_prime / (ImageWidth * 0.5f)) * Mathf.Tan(fovHorizontal * 0.5f * Mathf.Deg2Rad));
+        float localX = 0;
+        float localY = 0;
+        float localZ = 0;
 
-        // Gamma is the final downward angle from the horizontal plane to the point on the ground.
-        float gamma = (theta * Mathf.Deg2Rad) + alpha;
+        if (isDepthCamera)  // Use Unity's Raycast
+        {
+            // Calculate the distance from the camera to the work area plane along the optical axis.
+            // This is used to estimate the pixel density (pixels per meter) at the target area.
+            float dist = H;
+            if (Mathf.Sin(theta * Mathf.Deg2Rad) > 0.001f)
+            {
+                dist = H / Mathf.Sin(theta * Mathf.Deg2Rad);
+            }
 
-        // If the point is at or above the horizon, it cannot be projected onto the work plane.
-        if (gamma <= 0.001f) return new Vector3(0, -999, 0);
+            // Calculate the height of the visible area at that distance to determine pixel spacing.
+            float visibleHeight = 2.0f * dist * Mathf.Tan(fovVertical * 0.5f * Mathf.Deg2Rad);
+            float pixelsPerMeter = ImageHeight / visibleHeight;
+            float pixelSpacing = raycastSpacing * pixelsPerMeter;
 
-        // Use trigonometry to find the distance from the camera's ground-projection to the target point.
-        float z_dist = H / Mathf.Tan(gamma);
-        Debug.Log($"[Projection] z_dist: {H / Mathf.Tan((theta) * Mathf.Deg2Rad)}");
+            List<(Vector3 point, float distance)> hits = new List<(Vector3, float)>();
 
-        // Calculate the final local X and Z coordinates on the work area plane.
-        float localZ = L_cam - z_dist;
-        Debug.Log($"[Projection] localZ: {localZ}");
+            // Perform a 3x3 grid of raycasts centered on the target pixel (u, v).
+            // This helps to get a more robust depth estimation by sampling the surrounding area.
+            for (int i = -1; i <= 1; i++)
+            {
+                for (int j = -1; j <= 1; j++)
+                {
+                    Ray ray = captureCamera.ScreenPointToRay(new Vector3(u + i * pixelSpacing, ImageHeight - (v + j * pixelSpacing), 0));
+                    if (showDebugRay)
+                        Debug.DrawRay(ray.origin, ray.direction * 3.0f, Color.green, 5.0f);
+                    if (Physics.Raycast(ray, out RaycastHit hit))
+                    {
+                        // Store the hit point in the work area's local space and the distance from the camera.
+                        hits.Add((workArea.transform.InverseTransformPoint(hit.point), hit.distance));
+                    }
+                }
+            }
 
-        float horizontalDistToPoint = H / Mathf.Sin(gamma);
-        float localX = horizontalDistToPoint * Mathf.Tan(beta);
+            if (hits.Count > 0)
+            {
+                // Sort hits by distance from the camera (ascending).
+                hits.Sort((a, b) => a.distance.CompareTo(b.distance));
+
+                // Use the closest point for X and Z coordinates. 
+                // This assumes the closest point represents the object we want to interact with.
+                localX = hits[0].point.x;
+                localZ = hits[0].point.z;
+
+                // Calculate the average Y (height) using the three farthest points.
+                int count = Mathf.Min(hits.Count, 3);
+                float sumY = 0;
+                for (int k = 0; k < count; k++) sumY += hits[hits.Count - 1 - k].point.y;
+                localY = sumY / count;
+            }
+        }
+        else
+        {
+
+            // Calculate the vertical (alpha) and horizontal (beta) angles of the pixel relative to the camera's forward axis.
+            float alpha = Mathf.Atan((v_prime / (ImageHeight * 0.5f)) * Mathf.Tan(fovVertical * 0.5f * Mathf.Deg2Rad));
+            float beta = Mathf.Atan((u_prime / (ImageWidth * 0.5f)) * Mathf.Tan(fovHorizontal * 0.5f * Mathf.Deg2Rad));
+
+            // Gamma is the final downward angle from the horizontal plane to the point on the ground.
+            float gamma = (theta * Mathf.Deg2Rad) + alpha;
+
+            // If the point is at or above the horizon, it cannot be projected onto the work plane.
+            if (gamma <= 0.001f) return new Vector3(0, -999, 0);
+
+            // Use trigonometry to find the distance from the camera's ground-projection to the target point.
+            float z_dist = H / Mathf.Tan(gamma);
+            Debug.Log($"[Projection] z_dist: {H / Mathf.Tan((theta) * Mathf.Deg2Rad)}");
+
+            // Calculate the final local X and Z coordinates on the work area plane.
+            localZ = L_cam - z_dist;
+            Debug.Log($"[Projection] localZ: {localZ}");
+
+            float horizontalDistToPoint = H / Mathf.Sin(gamma);
+            localX = horizontalDistToPoint * Mathf.Tan(beta);
+        }
         Debug.Log($"[Projection] localX: {localX}");
-        return new Vector3(localX, 0, localZ);
+        return new Vector3(localX, localY, localZ);
     }
 }
