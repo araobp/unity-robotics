@@ -1,8 +1,6 @@
 # GeminiロボティクスでAIロボットシミュレーション
 **AI Robot Simulation with Gemini Robotics**
 
-(Work in progress)
-
 This project explores AI robot simulation using the Gemini Robotics-ER.
 
 ## Projects
